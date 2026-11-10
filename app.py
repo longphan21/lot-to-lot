@@ -1,7 +1,7 @@
 import io
 import streamlit as st
 import pandas as pd
-from clsi_engine import evaluate_stage1_row
+from clsi_engine import get_candidate_options_for_row
 from database import (
     init_db,
     save_test_setup,
@@ -18,31 +18,31 @@ st.set_page_config(
 init_db()
 
 st.title("Hệ thống Quản lý Đánh giá Lot-to-Lot (CLSI EP26-Ed2)")
-st.caption("Nhánh 1 (Stage 1 Setup): Thiết lập thông số kỹ thuật, tra cứu mẫu & giới hạn từ chối (Rejection Limit)")
+st.caption("Nhánh 1 (Stage 1 Setup): Nhập Power mong muốn -> Tự động lọc danh sách tối ưu Số mẫu ít nhất & Power cao nhất")
 
-# Dữ liệu mặc định từ bảng Excel GLUCOSE của bạn để dễ kiểm tra ngay lập tức
+# Dữ liệu mẫu mặc định
 DEFAULT_SAMPLES = {
     ("GLUCOSE", "Abbott (Alinity)"): pd.DataFrame([
-        {"Chọn chạy (Vàng)": False, "Target concentration": 0.39,  "TEa%": 9.300, "Swrl = CVwrl %": 1.8, "Sr = CVr %": 1.8, "k cố định (0 = Tự động)": 0.8},
-        {"Chọn chạy (Vàng)": True,  "Target concentration": 3.03,  "TEa%": 9.300, "Swrl = CVwrl %": 1.1, "Sr = CVr %": 0.9, "k cố định (0 = Tự động)": 0.7},
-        {"Chọn chạy (Vàng)": True,  "Target concentration": 5.88,  "TEa%": 9.300, "Swrl = CVwrl %": 0.9, "Sr = CVr %": 0.8, "k cố định (0 = Tự động)": 0.7},
-        {"Chọn chạy (Vàng)": False, "Target concentration": 40.38, "TEa%": 9.300, "Swrl = CVwrl %": 0.8, "Sr = CVr %": 0.8, "k cố định (0 = Tự động)": 0.8},
+        {"Chọn chạy (Vàng)": False, "Target concentration": 0.39,  "TEa%": 9.300, "Swrl = CVwrl %": 1.8, "Sr = CVr %": 1.8, "Power achieve mong muốn": 0.80},
+        {"Chọn chạy (Vàng)": True,  "Target concentration": 3.03,  "TEa%": 9.300, "Swrl = CVwrl %": 1.1, "Sr = CVr %": 0.9, "Power achieve mong muốn": 0.85},
+        {"Chọn chạy (Vàng)": True,  "Target concentration": 5.88,  "TEa%": 9.300, "Swrl = CVwrl %": 0.9, "Sr = CVr %": 0.8, "Power achieve mong muốn": 0.85},
+        {"Chọn chạy (Vàng)": False, "Target concentration": 40.38, "TEa%": 9.300, "Swrl = CVwrl %": 0.8, "Sr = CVr %": 0.8, "Power achieve mong muốn": 0.80},
     ]),
     ("GLUCOSE", "Roche (Cobas)"): pd.DataFrame([
-        {"Chọn chạy (Vàng)": False, "Target concentration": 0.188, "TEa%": 9.300, "Swrl = CVwrl %": 10.0, "Sr = CVr %": 9.2, "k cố định (0 = Tự động)": 0.8},
-        {"Chọn chạy (Vàng)": True,  "Target concentration": 3.57,  "TEa%": 9.300, "Swrl = CVwrl %": 0.6,  "Sr = CVr %": 0.5, "k cố định (0 = Tự động)": 0.7},
-        {"Chọn chạy (Vàng)": True,  "Target concentration": 5.46,  "TEa%": 9.300, "Swrl = CVwrl %": 0.5,  "Sr = CVr %": 0.4, "k cố định (0 = Tự động)": 0.7},
-        {"Chọn chạy (Vàng)": False, "Target concentration": 19.60, "TEa%": 9.300, "Swrl = CVwrl %": 0.7,  "Sr = CVr %": 0.6, "k cố định (0 = Tự động)": 0.8},
+        {"Chọn chạy (Vàng)": False, "Target concentration": 0.188, "TEa%": 9.300, "Swrl = CVwrl %": 10.0, "Sr = CVr %": 9.2, "Power achieve mong muốn": 0.80},
+        {"Chọn chạy (Vàng)": True,  "Target concentration": 3.57,  "TEa%": 9.300, "Swrl = CVwrl %": 0.6,  "Sr = CVr %": 0.5, "Power achieve mong muốn": 0.85},
+        {"Chọn chạy (Vàng)": True,  "Target concentration": 5.46,  "TEa%": 9.300, "Swrl = CVwrl %": 0.5,  "Sr = CVr %": 0.4, "Power achieve mong muốn": 0.85},
+        {"Chọn chạy (Vàng)": False, "Target concentration": 19.60, "TEa%": 9.300, "Swrl = CVwrl %": 0.7,  "Sr = CVr %": 0.6, "Power achieve mong muốn": 0.80},
     ])
 }
 
 tab_setup, tab_database = st.tabs([
-    "1. Thiết lập & Tính toán thông số (Stage 1)",
+    "1. Thiết lập & Tối ưu thông số (Stage 1)",
     "2. Danh mục Xét nghiệm đã lưu"
 ])
 
 with tab_setup:
-    col1, col2, col3, col4 = st.columns([2, 2, 1.5, 1.5])
+    col1, col2, col3, col4 = st.columns([2, 2, 1.2, 2.5])
     with col1:
         test_list = [
             "GLUCOSE", "TSH", "GGT", "AST", "CHOLESTEROL",
@@ -66,17 +66,14 @@ with tab_setup:
         unit_name = st.text_input("Đơn vị đo:", "mmol/L")
 
     with col4:
-        target_power = st.selectbox(
-            "Mục tiêu Power (khi k=0):",
-            options=[0.80, 0.85, 0.90, 0.95],
-            index=2
+        sort_option = st.selectbox(
+            "Quy tắc xếp hạng danh sách ở Bước 2:",
+            options=[
+                "Số mẫu chạy ít nhất -> Power achieve cao nhất",
+                "Power achieve cao nhất -> Số mẫu chạy ít nhất"
+            ]
         )
-
-    st.info(
-        "**Nguồn dữ liệu đầu vào:** "
-        "**Sr (CVr%)** lấy từ IFU hoặc dữ liệu CVr trong hồ sơ xác nhận phương pháp; "
-        "**Swrl (CVwrl%)** lấy từ IFU hoặc dữ liệu IQC theo từng mức nồng độ (tối thiểu 20 điểm dữ liệu)."
-    )
+        sort_mode = "min_n_max_power" if "Số mẫu chạy ít nhất ->" in sort_option else "max_power_min_n"
 
     # Tải dữ liệu từ DB nếu đã lưu, nếu chưa có thì lấy dữ liệu mẫu
     saved_df = load_specific_setup(test_name, machine_name)
@@ -87,17 +84,17 @@ with tab_setup:
             "TEa%": saved_df["tea_pct"].astype(float),
             "Swrl = CVwrl %": saved_df["swrl_pct"].astype(float),
             "Sr = CVr %": saved_df["sr_pct"].astype(float),
-            "k cố định (0 = Tự động)": saved_df["k_factor"].astype(float),
+            "Power achieve mong muốn": saved_df["power_achieve"].clip(upper=0.95).round(2),
         })
     elif (test_name, machine_name) in DEFAULT_SAMPLES:
         init_input_df = DEFAULT_SAMPLES[(test_name, machine_name)].copy()
     else:
         init_input_df = pd.DataFrame([
-            {"Chọn chạy (Vàng)": True, "Target concentration": 1.0, "TEa%": 10.0, "Swrl = CVwrl %": 1.5, "Sr = CVr %": 1.2, "k cố định (0 = Tự động)": 0.0},
-            {"Chọn chạy (Vàng)": True, "Target concentration": 5.0, "TEa%": 10.0, "Swrl = CVwrl %": 1.2, "Sr = CVr %": 1.0, "k cố định (0 = Tự động)": 0.0},
+            {"Chọn chạy (Vàng)": True, "Target concentration": 0.095, "TEa%": 12.400, "Swrl = CVwrl %": 2.000, "Sr = CVr %": 1.500, "Power achieve mong muốn": 0.80},
+            {"Chọn chạy (Vàng)": True, "Target concentration": 6.145, "TEa%": 12.400, "Swrl = CVwrl %": 1.500, "Sr = CVr %": 1.300, "Power achieve mong muốn": 0.80},
         ])
 
-    st.subheader("Bước 1: Nhập thông số từng mức nồng độ")
+    st.subheader("Bước 1: Nhập thông số và Power achieve mong muốn")
     edited_input = st.data_editor(
         init_input_df,
         num_rows="dynamic",
@@ -105,69 +102,124 @@ with tab_setup:
         column_config={
             "Chọn chạy (Vàng)": st.column_config.CheckboxColumn(
                 "Chọn chạy (Vàng)",
-                help="Tích chọn những mức nồng độ quyết định dùng để đánh giá Lot-to-Lot thực tế"
+                help="Tích chọn những mức nồng độ quyết định dùng để đánh giá Lot-to-Lot"
             ),
             "Target concentration": st.column_config.NumberColumn("Target concentration", format="%.3f"),
             "TEa%": st.column_config.NumberColumn("TEa%", format="%.3f"),
             "Swrl = CVwrl %": st.column_config.NumberColumn("Swrl = CVwrl %", format="%.3f"),
             "Sr = CVr %": st.column_config.NumberColumn("Sr = CVr %", format="%.3f"),
-            "k cố định (0 = Tự động)": st.column_config.NumberColumn(
-                "k (Nhập 0 để tự tra bảng)",
-                min_value=0.0, max_value=0.95, step=0.05, format="%.2f"
+            "Power achieve mong muốn": st.column_config.NumberColumn(
+                "Power achieve mong muốn",
+                help="Nhập mức Power tối thiểu cần đạt (ví dụ: 0.80, 0.85, 0.90)",
+                min_value=0.50, max_value=0.99, step=0.05, format="%.2f"
             ),
         },
         key=f"editor_{test_name}_{machine_name}"
     )
 
-    # Đếm số mức nồng độ được tích chọn (L = 1, 2, hoặc 3) để chọn Bảng A1, A2, A3
     num_selected_levels = int(edited_input["Chọn chạy (Vàng)"].sum())
     num_levels_for_lookup = max(1, min(3, num_selected_levels if num_selected_levels > 0 else 2))
 
-    # Thực hiện tính toán cho từng dòng
-    result_rows = []
-    for _, row in edited_input.iterrows():
+    st.subheader(
+        f"Bước 2: Danh sách các phương án phù hợp "
+        f"(Đang chọn {num_selected_levels} mức nồng độ quyết định -> Tra theo Bảng A{num_levels_for_lookup})"
+    )
+
+    all_options_rows = []
+    chosen_final_rows = []
+
+    # Cho phép người dùng xem toàn bộ danh sách phương án phù hợp và chọn phương án chốt cho từng mức nồng độ
+    for idx, row in edited_input.iterrows():
         if pd.isna(row["Target concentration"]) or pd.isna(row["TEa%"]):
             continue
-        k_val = float(row.get("k cố định (0 = Tự động)", 0.0) or 0.0)
-        manual_k = k_val if k_val > 0 else None
 
-        calc = evaluate_stage1_row(
+        target_c = float(row["Target concentration"])
+        desired_p = float(row.get("Power achieve mong muốn", 0.80) or 0.80)
+        is_sel = bool(row["Chọn chạy (Vàng)"])
+
+        candidates = get_candidate_options_for_row(
             tea_pct=float(row["TEa%"]),
             swrl_pct=float(row["Swrl = CVwrl %"]),
             sr_pct=float(row["Sr = CVr %"]),
             num_levels=num_levels_for_lookup,
-            target_power=float(target_power),
-            manual_k=manual_k
+            desired_power=desired_p,
+            sort_mode=sort_mode
         )
 
-        result_rows.append({
-            "Chọn chạy (Vàng)": bool(row["Chọn chạy (Vàng)"]),
+        for rank_idx, cand in enumerate(candidates, start=1):
+            all_options_rows.append({
+                "Thứ tự ưu tiên": f"#{rank_idx}" + (" (Tối ưu nhất)" if rank_idx == 1 else ""),
+                "Chọn chạy (Vàng)": is_sel,
+                "Target concentration": target_c,
+                "Power mong muốn": desired_p,
+                "Power achieve": cand["power_achieve"],
+                "Number of sample each concentration": cand["n_samples"],
+                "Rejection limit": cand["rejection_limit"],
+                "k": cand["k_factor"],
+                "CD% (Critical Difference)": cand["cd_pct"],
+                "CD/Swrl": cand["cd_swrl"],
+                "Sr/Swrl": cand["sr_swrl"],
+                "Ghi chú": cand["note"]
+            })
+
+        # Mặc định lấy phương án #1 (Đứng đầu danh sách tối ưu), nhưng cho phép đổi nếu có nhiều phương án
+        if is_sel and len(candidates) > 1:
+            option_labels = [
+                f"Hạng #{i+1}: N = {c['n_samples']} mẫu | Power = {c['power_achieve']:.3f} | k = {c['k_factor']:.2f} | RL = {c['rejection_limit']:.2f}%"
+                for i, c in enumerate(candidates)
+            ]
+            selected_label = st.selectbox(
+                f"Chọn phương án chốt cho mức nồng độ {target_c:.3f} ({unit_name}):",
+                options=option_labels,
+                index=0,
+                key=f"pick_{test_name}_{machine_name}_{idx}"
+            )
+            chosen_idx = option_labels.index(selected_label)
+            picked_cand = candidates[chosen_idx]
+        else:
+            picked_cand = candidates[0]
+
+        chosen_final_rows.append({
+            "Chọn chạy (Vàng)": is_sel,
             "TÊN XN": test_name,
             "Machine": machine_name,
-            "Target concentration": float(row["Target concentration"]),
+            "Target concentration": target_c,
             "Đơn vị": unit_name,
             "TEa%": float(row["TEa%"]),
             "Swrl = CVwrl %": float(row["Swrl = CVwrl %"]),
             "Sr = CVr %": float(row["Sr = CVr %"]),
-            "CD% (Critical Difference)": calc["cd_pct"],
-            "CD/Swrl": calc["cd_swrl"],
-            "Sr/Swrl": calc["sr_swrl"],
-            "Power achieve": calc["power_achieve"],
-            "Number of sample each concentration": calc["n_samples"],
-            "Rejection limit": calc["rejection_limit"],
-            "k": calc["k_factor"],
-            "Ghi chú": calc["note"]
+            "CD% (Critical Difference)": picked_cand["cd_pct"],
+            "CD/Swrl": picked_cand["cd_swrl"],
+            "Sr/Swrl": picked_cand["sr_swrl"],
+            "Power achieve": picked_cand["power_achieve"],
+            "Number of sample each concentration": picked_cand["n_samples"],
+            "Rejection limit": picked_cand["rejection_limit"],
+            "k": picked_cand["k_factor"],
+            "Ghi chú": picked_cand["note"]
         })
 
-    result_df = pd.DataFrame(result_rows)
+    if all_options_rows:
+        options_df = pd.DataFrame(all_options_rows)
+        with st.expander("Xem chi tiết toàn bộ danh sách các phương án phù hợp theo thứ tự ưu tiên", expanded=True):
+            st.dataframe(
+                options_df.style.format({
+                    "Target concentration": "{:.3f}",
+                    "Power mong muốn": "{:.2f}",
+                    "Power achieve": "{:.3f}",
+                    "Rejection limit": "{:.2f}",
+                    "k": "{:.2f}",
+                    "CD% (Critical Difference)": "{:.3f}",
+                    "CD/Swrl": "{:.3f}",
+                    "Sr/Swrl": "{:.3f}",
+                }),
+                use_container_width=True,
+                hide_index=True
+            )
 
-    st.subheader(
-        f"Bước 2: Bảng kết quả tính toán tự động "
-        f"(Đang chọn {num_selected_levels} mức nồng độ quyết định -> Tra theo Bảng A{num_levels_for_lookup})"
-    )
+    result_df = pd.DataFrame(chosen_final_rows)
 
+    st.subheader("Bảng cấu hình chốt để lưu (Tự động lấy phương án tối ưu đã chọn ở trên)")
     if not result_df.empty:
-        # Tô màu vàng cho các dòng được chọn giống hệt bảng Excel của bạn
         def highlight_selected(s):
             if s["Chọn chạy (Vàng)"]:
                 return ["background-color: #ffff00; color: #000000; font-weight: bold"] * len(s)
@@ -206,7 +258,6 @@ with tab_database:
 
         st.dataframe(display_db, use_container_width=True, hide_index=True)
 
-        # Nút xuất ra file Excel tổng hợp
         buffer = io.BytesIO()
         with pd.ExcelWriter(buffer, engine="openpyxl") as writer:
             display_db.to_excel(writer, index=False, sheet_name="Stage1_Setup")
