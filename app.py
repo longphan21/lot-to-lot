@@ -26,12 +26,13 @@ DEFAULT_SAMPLES = {
     ])
 }
 
-# SẮP XẾP LẠI THỨ TỰ TAB THEO Ý BẠN (SỬ DỤNG NHIỀU LÊN TRƯỚC)
-tab_stage2, tab_history, tab_stage1, tab_db_setup = st.tabs([
+# ĐÃ BỔ SUNG TAB TỔNG QUAN LOT (DASHBOARD)
+tab_stage2, tab_history, tab_dashboard, tab_stage1, tab_db_setup = st.tabs([
     "🧪 1. Đánh giá Mẫu thực tế (Stage 2)",
     "🕒 2. Lịch sử Đánh giá",
-    "⚙️ 3. Cấu hình Thông số (Stage 1)",
-    "📂 4. Danh mục XN đã lưu"
+    "📊 3. Tổng quan LOT (Dashboard)",
+    "⚙️ 4. Cấu hình Thông số (Stage 1)",
+    "📂 5. Danh mục XN đã lưu"
 ])
 
 
@@ -69,12 +70,11 @@ with tab_stage2:
     active_setups = all_setups[all_setups["is_selected"] == 1] if not all_setups.empty else pd.DataFrame()
 
     if active_setups.empty:
-        st.warning("⚠️ Chưa có cấu hình xét nghiệm nào. Vui lòng sang **Tab 3** để thiết lập thông số ban đầu!")
+        st.warning("⚠️ Chưa có cấu hình xét nghiệm nào. Vui lòng sang **Tab 4** để thiết lập thông số ban đầu!")
     else:
         with st.container(border=True):
             st.markdown("#### 🧾 Thông tin Đợt Đánh giá")
 
-            # Chia làm 2 dòng để giao diện gọn gàng, có chỗ cho Loại hóa chất
             c1, c2, c3 = st.columns([1.5, 1.5, 1])
             with c1:
                 eval_test = st.selectbox("Chọn Xét nghiệm:", active_setups["test_name"].unique().tolist(),
@@ -92,7 +92,6 @@ with tab_stage2:
 
             c4, c5, c6 = st.columns([2, 1, 1])
             with c4:
-                # BỔ SUNG Ô NHẬP LOẠI HÓA CHẤT Ở ĐÂY
                 reagent_name = st.text_input("🧪 Loại hóa chất thay thế (Huyết học/HbA1c):",
                                              placeholder="VD: CELL-DYN Diluent/Sheath... (Bỏ trống nếu là Sinh hóa)",
                                              key="s2_reagent").strip()
@@ -164,7 +163,7 @@ with tab_stage2:
                                 "diff_d": d_row["d"], "mean_d": eval_res["mean_d"],
                                 "mean_d_pct": eval_res["mean_d_pct"],
                                 "rl_pct": eval_res["rl_pct"], "k_factor": k_db, "status": eval_res["result"],
-                                "reagent_name": reagent_name  # BẮT BUỘC TRUYỀN VÀO ĐÂY ĐỂ LƯU CSDL
+                                "reagent_name": reagent_name
                             })
                         summary_table_rows.append({"Kết quả": eval_res["result"]})
 
@@ -200,7 +199,7 @@ with tab_history:
                 mach_id = first_row.get('machine_id', '')
                 l_old = first_row['lot_old']
                 l_new = first_row['lot_new']
-                reagent = first_row.get('reagent_name', '')  # LẤY TÊN HÓA CHẤT TỪ LỊCH SỬ
+                reagent = first_row.get('reagent_name', '')
 
                 e_date_str = first_row['eval_date'].strftime('%Y-%m-%d')
                 display_date_str = first_row['eval_date'].strftime('%d/%m/%Y')
@@ -217,7 +216,6 @@ with tab_history:
 
                     with col_word:
                         setup_df = all_setups[(all_setups['test_name'] == t_name) & (all_setups['machine'] == mach)]
-                        # TRUYỀN BIẾN REAGENT VÀO HÀM TẠO FILE WORD
                         docx_file = generate_report_docx(
                             e_date_str, t_name, unit, mach, mach_id, reagent, l_old, l_new, setup_df, group
                         )
@@ -257,7 +255,76 @@ with tab_history:
                             st.rerun()
 
 # ==============================================================================
-# TAB 3: GIAI ĐOẠN 1 - SETUP THÔNG SỐ (CẬP NHẬT MÃ THIẾT BỊ)
+# TAB 3: TỔNG QUAN LOT (DASHBOARD MỚI)
+# ==============================================================================
+with tab_dashboard:
+    st.markdown("### 📊 Bảng điều khiển Hiện trạng Hóa chất (LOT)")
+    df_hist_dash = load_stage2_history()
+
+    if df_hist_dash.empty:
+        st.info("Chưa có dữ liệu đánh giá.")
+    else:
+        # Làm sạch và điền rỗng cho reagent_name
+        df_hist_dash['reagent_name'] = df_hist_dash['reagent_name'].fillna('').astype(str).str.strip()
+        df_hist_dash['eval_date_obj'] = pd.to_datetime(df_hist_dash['eval_date'])
+
+        # Lọc bỏ trùng lặp (vì 1 đợt đánh giá có nhiều levels nhưng cùng chung mã created_at)
+        df_unique_evals = df_hist_dash.drop_duplicates(subset=['created_at']).copy()
+
+        # Tách dữ liệu: Sinh hóa (reagent trống) / Huyết học (có reagent)
+        df_sh = df_unique_evals[df_unique_evals['reagent_name'] == '']
+        df_hh = df_unique_evals[df_unique_evals['reagent_name'] != '']
+
+        col_sh, col_hh = st.columns(2)
+
+
+        def render_dashboard_section(df_section, title, icon):
+            st.markdown(f"#### {icon} {title}")
+            if df_section.empty:
+                st.write("Chưa có dữ liệu.")
+                return
+
+            machines = sorted(df_section['machine'].unique())
+            for mach in machines:
+                with st.container(border=True):
+                    st.markdown(f"##### 🖨️ Máy: **{mach}**")
+                    df_mach = df_section[df_section['machine'] == mach]
+
+                    # Nhóm theo tên Xét nghiệm
+                    test_groups = df_mach.groupby('test_name', sort=False)
+
+                    for t_name, group in test_groups:
+                        # Lấy bản ghi đầu tiên (mới nhất vì lịch sử đã sort DESC)
+                        latest_eval = group.iloc[0]
+                        latest_lot = latest_eval['lot_new']
+                        latest_date = latest_eval['eval_date_obj'].strftime('%d/%m/%Y')
+                        r_name = latest_eval['reagent_name']
+
+                        # Tên hiển thị trên thanh mở rộng
+                        display_name = f"🧪 {t_name}"
+                        if r_name:
+                            display_name = f"🧪 {t_name} ({r_name})"
+
+                        with st.expander(f"{display_name} | LOT mới nhất: **{latest_lot}** (Đổi: {latest_date})"):
+                            # Tạo bảng lịch sử thay đổi của riêng xét nghiệm này
+                            hist_display = group[['eval_date_obj', 'lot_old', 'lot_new', 'status']].copy()
+                            hist_display['eval_date_obj'] = hist_display['eval_date_obj'].dt.strftime('%d/%m/%Y')
+
+                            # Chuyển đổi chữ PASS/FAIL sang Tiếng Việt cho đẹp
+                            hist_display['status'] = hist_display['status'].map(
+                                {'PASS': '✅ Đạt', 'FAIL': '❌ Trượt'}).fillna(hist_display['status'])
+
+                            hist_display.columns = ['Ngày thay', 'LOT cũ', 'LOT mới', 'Kết quả']
+                            st.dataframe(hist_display.reset_index(drop=True), use_container_width=True, hide_index=True)
+
+
+        with col_sh:
+            render_dashboard_section(df_sh, "Sinh hóa - Miễn dịch", "🧬")
+        with col_hh:
+            render_dashboard_section(df_hh, "Huyết học - HbA1c", "🩸")
+
+# ==============================================================================
+# TAB 4: GIAI ĐOẠN 1 - SETUP THÔNG SỐ (CẬP NHẬT MÃ THIẾT BỊ)
 # ==============================================================================
 with tab_stage1:
     all_setups_for_dropdown = load_all_setups()
@@ -357,7 +424,6 @@ with tab_stage1:
                 num_levels=num_selected_levels, desired_power=global_target_power, sort_mode="min_n_max_power"
             )
 
-            # Tự động tạo tên bảng dựa trên số lượng mức nồng độ được chọn
             bang_tra = f"Bảng A{num_selected_levels}"
 
             with st.container(border=True):
@@ -376,7 +442,6 @@ with tab_stage1:
                     st.info(
                         f"💡 Tra {bang_tra} | Cần {picked_cand['n_samples']} mẫu | Power = {picked_cand['power_achieve']:.3f} | CD/Swrl = {picked_cand['cd_swrl']} | Sr/Swrl = {picked_cand['sr_swrl']} | K = {picked_cand['k_factor']} | RL = {picked_cand['rejection_limit']:.2f}%")
 
-                # BỔ SUNG THUẬT TOÁN ĐỂ LƯU OPTIONS VÀO DATABASE MÀ KHÔNG BỊ TRỐNG
                 row_to_save = row.copy().to_dict()
                 row_to_save["unit"] = unit_name
                 row_to_save["power_achieve"] = picked_cand["power_achieve"]
@@ -385,7 +450,8 @@ with tab_stage1:
                 row_to_save["k_factor"] = picked_cand["k_factor"]
                 row_to_save["rejection_limit"] = picked_cand["rejection_limit"]
                 row_to_save["n_samples"] = picked_cand["n_samples"]
-                row_to_save["Ghi chú"] = picked_cand.get("note", f"Đạt chuẩn (Mốc tra bảng: CD/Swrl={picked_cand['cd_swrl']}, Sr/Swrl={picked_cand['sr_swrl']})")
+                row_to_save["Ghi chú"] = picked_cand.get("note",
+                                                         f"Đạt chuẩn (Mốc tra bảng: CD/Swrl={picked_cand['cd_swrl']}, Sr/Swrl={picked_cand['sr_swrl']})")
                 chosen_final_rows.append(row_to_save)
 
         if st.button("✅ LƯU CẤU HÌNH VÀO DATABASE", type="primary", use_container_width=True):
@@ -393,7 +459,7 @@ with tab_stage1:
             st.success(f"Đã lưu thành công thông số và Mã thiết bị cho {test_name} - {machine_name}!")
 
 # ==============================================================================
-# TAB 4: DANH MỤC CẤU HÌNH ĐÃ LƯU
+# TAB 5: DANH MỤC CẤU HÌNH ĐÃ LƯU
 # ==============================================================================
 with tab_db_setup:
     st.markdown("### 📂 Cấu hình Stage 1 hiện có")
