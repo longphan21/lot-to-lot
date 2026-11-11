@@ -6,14 +6,16 @@ from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.enum.table import WD_CELL_VERTICAL_ALIGNMENT, WD_ROW_HEIGHT_RULE
 
 
-def generate_report_docx(eval_date_str, test_name, unit, machine, machine_id, lot_old, lot_new, stage1_df, stage2_df):
+# 1. ĐÃ THÊM THAM SỐ reagent_name VÀO HÀM
+def generate_report_docx(eval_date_str, test_name, unit, machine, machine_id, reagent_name, lot_old, lot_new, stage1_df,
+                         stage2_df):
     template_path = os.path.join(os.path.dirname(__file__), 'template.docx')
     doc = Document(template_path) if os.path.exists(template_path) else Document()
 
     # Mã màu xanh đen chuẩn của form MEDIC
     theme_color = RGBColor(0, 32, 96)
 
-    # 1. Chuyển đổi định dạng ngày thành DD/MM/YYYY
+    # Chuyển đổi định dạng ngày thành DD/MM/YYYY
     d_parts = eval_date_str.split('-')
     if len(d_parts) == 3:
         d_ngay, d_thang, d_nam = d_parts[2], d_parts[1], d_parts[0]
@@ -27,8 +29,15 @@ def generate_report_docx(eval_date_str, test_name, unit, machine, machine_id, lo
     overall_pass = all(row['status'] == "PASS" for _, row in stage2_df.iterrows())
     ket_luan_tong = "2 lot thuốc thử trên tương đồng" if overall_pass else "2 lot thuốc thử trên KHÔNG tương đồng"
 
+    # 2. XỬ LÝ GỘP TÊN MÁY VÀ HÓA CHẤT (NẾU CÓ)
+    if reagent_name and str(reagent_name).strip():
+        combined_machine = f"{str(machine).strip()} - {str(reagent_name).strip()}"
+    else:
+        combined_machine = str(machine).strip()
+
+    # 3. CẬP NHẬT TỪ ĐIỂN REPLACEMENTS
     replacements = {
-        "[Tên thiết bị]": str(machine).strip(),
+        "[Tên thiết bị]": combined_machine,
         "[Mã thiết bị]": str(machine_id).strip(),
         "[Tên xét nghiệm]": f"{test_name} ({unit})".strip(),
         "[Lô hóa chất cũ]": str(lot_old).strip(),
@@ -99,7 +108,7 @@ def generate_report_docx(eval_date_str, test_name, unit, machine, machine_id, lo
         for footer in [section.footer, section.first_page_footer, section.even_page_footer]:
             for p in footer.paragraphs: replace_in_paragraph(p)
 
-    # 3. TỰ ĐỘNG XỬ LÝ BẢNG STAGE 1 (BẢNG D1)
+    # TỰ ĐỘNG XỬ LÝ BẢNG STAGE 1 (BẢNG D1)
     for table in doc.tables:
         if len(table.rows) > 0 and len(table.rows[0].cells) > 1 and "TEa%" in table.rows[0].cells[1].text:
 
@@ -125,7 +134,7 @@ def generate_report_docx(eval_date_str, test_name, unit, machine, machine_id, lo
                 new_row.height = Cm(0.8)
 
                 vals = [
-                    str(row_data['target_conc']).strip(),  # CHỈ LẤY SỐ
+                    str(row_data['target_conc']).strip(),
                     str(row_data['tea_pct']).strip(),
                     str(row_data['cd_swrl']).strip(),
                     str(row_data['sr_swrl']).strip(),
@@ -145,10 +154,10 @@ def generate_report_docx(eval_date_str, test_name, unit, machine, machine_id, lo
                         if len(p.runs) > 0:
                             p.runs[0].font.name = 'Times New Roman'
                             p.runs[0].font.size = Pt(12)
-                            p.runs[0].font.color.rgb = theme_color  # ÉP MÀU XANH ĐEN
+                            p.runs[0].font.color.rgb = theme_color
             break
 
-    # 4. TỰ ĐỘNG XỬ LÝ BẢNG STAGE 2 (BẢNG D2)
+    # TỰ ĐỘNG XỬ LÝ BẢNG STAGE 2 (BẢNG D2)
     for table in doc.tables:
         if len(table.rows) > 0 and len(table.rows[0].cells) > 1 and "SID" in table.rows[0].cells[1].text:
 
@@ -200,10 +209,10 @@ def generate_report_docx(eval_date_str, test_name, unit, machine, machine_id, lo
                             if len(p.runs) > 0:
                                 p.runs[0].font.name = 'Times New Roman'
                                 p.runs[0].font.size = Pt(12)
-                                p.runs[0].font.color.rgb = theme_color  # ÉP MÀU XANH ĐEN
+                                p.runs[0].font.color.rgb = theme_color
 
                 merged_data = {
-                    0: str(target_conc).strip(),  # CHỈ LẤY SỐ, BỎ ĐƠN VỊ
+                    0: str(target_conc).strip(),
                     4: f"{group.iloc[0]['mean_d_pct']:.3f}".strip(),
                     5: f"{group.iloc[0]['rl_pct']:.3f}".strip(),
                     6: level_status
@@ -224,7 +233,7 @@ def generate_report_docx(eval_date_str, test_name, unit, machine, machine_id, lo
                         if len(p.runs) > 0:
                             p.runs[0].font.name = 'Times New Roman'
                             p.runs[0].font.size = Pt(12)
-                            p.runs[0].font.color.rgb = theme_color  # ÉP MÀU XANH ĐEN
+                            p.runs[0].font.color.rgb = theme_color
             break
 
     out = io.BytesIO()

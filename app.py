@@ -34,23 +34,20 @@ tab_stage2, tab_history, tab_stage1, tab_db_setup = st.tabs([
     "📂 4. Danh mục XN đã lưu"
 ])
 
+
 def convert_docx_to_pdf_bytes(docx_bytes):
     with tempfile.TemporaryDirectory() as tmpdir:
         docx_path = os.path.join(tmpdir, "report.docx")
         pdf_path = os.path.join(tmpdir, "report.pdf")
 
-        # Ghi file Word tạm thời vào bộ nhớ
         with open(docx_path, "wb") as f:
             f.write(docx_bytes)
 
-        # Kích hoạt LibreOffice ẩn để chuyển đổi sang PDF
         try:
-            # Dành cho Streamlit Cloud (Linux)
             subprocess.run(['libreoffice', '--headless', '--convert-to', 'pdf', docx_path, '--outdir', tmpdir],
                            check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         except FileNotFoundError:
             try:
-                # Dành cho lúc bạn test ở máy viện (nếu Windows đã cài LibreOffice)
                 subprocess.run(['soffice', '--headless', '--convert-to', 'pdf', docx_path, '--outdir', tmpdir],
                                check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
             except:
@@ -58,11 +55,11 @@ def convert_docx_to_pdf_bytes(docx_bytes):
         except Exception:
             return None
 
-        # Đọc file PDF vừa tạo và trả về dữ liệu
         if os.path.exists(pdf_path):
             with open(pdf_path, "rb") as f:
                 return f.read()
     return None
+
 
 # ==============================================================================
 # TAB 1: GIAI ĐOẠN 2 - ĐÁNH GIÁ MẪU HẰNG NGÀY
@@ -76,27 +73,32 @@ with tab_stage2:
     else:
         with st.container(border=True):
             st.markdown("#### 🧾 Thông tin Đợt Đánh giá")
-            c1, c2, c3, c4, c5 = st.columns([1.6, 2.0, 1.4, 1.6, 1.6])
 
+            # Chia làm 2 dòng để giao diện gọn gàng, có chỗ cho Loại hóa chất
+            c1, c2, c3 = st.columns([1.5, 1.5, 1])
             with c1:
                 eval_test = st.selectbox("Chọn Xét nghiệm:", active_setups["test_name"].unique().tolist(),
                                          key="s2_test")
             with c2:
                 eval_machine = st.selectbox("Dòng máy:", active_setups[active_setups["test_name"] == eval_test][
                     "machine"].unique().tolist(), key="s2_mach")
-
-                # Tự động lấy Mã thiết bị đã lưu từ DB
                 eval_machine_id = ""
                 mach_df = active_setups[
                     (active_setups["test_name"] == eval_test) & (active_setups["machine"] == eval_machine)]
                 if not mach_df.empty and "machine_id" in mach_df.columns and pd.notna(mach_df["machine_id"].iloc[0]):
                     eval_machine_id = str(mach_df["machine_id"].iloc[0])
-
             with c3:
                 eval_date = st.date_input("Ngày thực hiện:", value=date.today(), key="s2_date", format="DD/MM/YYYY")
+
+            c4, c5, c6 = st.columns([2, 1, 1])
             with c4:
-                lot_old = st.text_input("Số LOT cũ:", value="82273UD00", key="s2_lot_old").strip()
+                # BỔ SUNG Ô NHẬP LOẠI HÓA CHẤT Ở ĐÂY
+                reagent_name = st.text_input("🧪 Loại hóa chất thay thế (Huyết học/HbA1c):",
+                                             placeholder="VD: CELL-DYN Diluent/Sheath... (Bỏ trống nếu là Sinh hóa)",
+                                             key="s2_reagent").strip()
             with c5:
+                lot_old = st.text_input("Số LOT cũ:", value="82273UD00", key="s2_lot_old").strip()
+            with c6:
                 lot_new = st.text_input("Số LOT mới:", value="86280UD00", key="s2_lot_new").strip()
 
         test_levels_df = mach_df.sort_values("target_conc").reset_index(drop=True)
@@ -161,7 +163,8 @@ with tab_stage2:
                                 "sid": d_row["SID"], "val_old": d_row["LOT_old_val"], "val_new": d_row["LOT_new_val"],
                                 "diff_d": d_row["d"], "mean_d": eval_res["mean_d"],
                                 "mean_d_pct": eval_res["mean_d_pct"],
-                                "rl_pct": eval_res["rl_pct"], "k_factor": k_db, "status": eval_res["result"]
+                                "rl_pct": eval_res["rl_pct"], "k_factor": k_db, "status": eval_res["result"],
+                                "reagent_name": reagent_name  # BẮT BUỘC TRUYỀN VÀO ĐÂY ĐỂ LƯU CSDL
                             })
                         summary_table_rows.append({"Kết quả": eval_res["result"]})
 
@@ -197,15 +200,12 @@ with tab_history:
                 mach_id = first_row.get('machine_id', '')
                 l_old = first_row['lot_old']
                 l_new = first_row['lot_new']
+                reagent = first_row.get('reagent_name', '')  # LẤY TÊN HÓA CHẤT TỪ LỊCH SỬ
 
-                # Giữ nguyên e_date_str cho hàm Word xử lý cắt chuỗi
                 e_date_str = first_row['eval_date'].strftime('%Y-%m-%d')
-                # Tạo biến mới định dạng DD/MM/YYYY chuẩn Việt Nam để hiển thị giao diện
                 display_date_str = first_row['eval_date'].strftime('%d/%m/%Y')
-
                 unit = first_row['unit']
 
-                # Thay thế biến ngày tháng ở thẻ expander
                 with st.expander(f"📌 {display_date_str} | {t_name} ({mach}) | LOT: {l_old} ➔ {l_new}", expanded=False):
                     display_cols = ['level_name', 'target_conc', 'sid', 'val_old', 'val_new', 'diff_d', 'mean_d',
                                     'mean_d_pct', 'rl_pct', 'status']
@@ -213,14 +213,13 @@ with tab_history:
                                  hide_index=True)
 
                     st.write("")
-                    st.write("")
-                    # Chia làm 3 cột bằng nhau
                     col_word, col_pdf, col_del = st.columns([1, 1, 1])
 
                     with col_word:
                         setup_df = all_setups[(all_setups['test_name'] == t_name) & (all_setups['machine'] == mach)]
+                        # TRUYỀN BIẾN REAGENT VÀO HÀM TẠO FILE WORD
                         docx_file = generate_report_docx(
-                            e_date_str, t_name, unit, mach, mach_id, l_old, l_new, setup_df, group
+                            e_date_str, t_name, unit, mach, mach_id, reagent, l_old, l_new, setup_df, group
                         )
                         st.download_button(
                             label="📄 XUẤT WORD",
@@ -232,7 +231,6 @@ with tab_history:
                         )
 
                     with col_pdf:
-                        # Thuật toán: Nút Tạo PDF -> Xử lý (chờ 3s) -> Nút Tải PDF
                         if f"pdf_ready_{created_at}" not in st.session_state:
                             if st.button("📕 TẠO FILE PDF", key=f"create_pdf_{created_at}", use_container_width=True):
                                 with st.spinner("Đang vẽ PDF..."):
@@ -269,28 +267,23 @@ with tab_stage1:
         col1, col2, col3, col4, col5 = st.columns([1.5, 1.5, 1.2, 1, 1.5])
 
         with col1:
-            # Tự động lấy danh sách Xét nghiệm đã có trong DB
             db_tests = all_setups_for_dropdown[
                 "test_name"].unique().tolist() if not all_setups_for_dropdown.empty else []
             default_tests = ["CHOLESTEROL", "GLUCOSE", "TSH", "GGT", "AST", "CREATININ", "ALT", "TRIGLYXERIDE", "FT4",
                              "ACID URIC"]
             test_list = list(dict.fromkeys(db_tests + default_tests)) + ["-- Nhập tên mới --"]
-
             selected_test = st.selectbox("Tên xét nghiệm:", test_list)
             test_name = st.text_input("Nhập tên XN mới:",
                                       "HBA1C").strip().upper() if selected_test == "-- Nhập tên mới --" else selected_test
 
         with col2:
-            # Tự động lấy danh sách Máy đã có trong DB
             db_machs = all_setups_for_dropdown["machine"].unique().tolist() if not all_setups_for_dropdown.empty else []
             default_machs = ["Abbott (Alinity)", "Roche (Cobas)"]
             machine_list = list(dict.fromkeys(db_machs + default_machs)) + ["-- Nhập máy khác --"]
-
             selected_machine = st.selectbox("Dòng máy:", machine_list)
             machine_name = st.text_input("Nhập tên máy mới:",
                                          "Sysmex").strip() if selected_machine == "-- Nhập máy khác --" else selected_machine
 
-        # TRUY XUẤT NGAY DATABASE VỚI TEST VÀ MACHINE ĐÃ CHỌN ĐỂ MATCHING
         saved_df = load_specific_setup(test_name, machine_name)
 
         existing_mach_id = ""
@@ -315,9 +308,10 @@ with tab_stage1:
             global_target_power = st.selectbox(
                 "Power tối thiểu:",
                 options=[0.0, 0.50, 0.60, 0.70, 0.80, 0.85, 0.90, 0.95],
-                format_func=lambda x: "Hiển thị tất cả" if x == 0.0 else f">= {x*100}%",
-                index=0  # Mặc định là 0.0 để mở khóa toàn bộ lựa chọn
+                format_func=lambda x: "Hiển thị tất cả" if x == 0.0 else f">= {x * 100}%",
+                index=0
             )
+
     if not saved_df.empty:
         st.info(
             "🔄 Đã tự động lấy dữ liệu cũ từ Database. Bạn hãy nhập thêm [Mã thiết bị] rồi cuộn xuống bấm Lưu để cập nhật nhé.")
@@ -363,18 +357,36 @@ with tab_stage1:
                 num_levels=num_selected_levels, desired_power=global_target_power, sort_mode="min_n_max_power"
             )
 
+            # Tự động tạo tên bảng dựa trên số lượng mức nồng độ được chọn
+            bang_tra = f"Bảng A{num_selected_levels}"
+
             with st.container(border=True):
                 st.markdown(f"📍 **Mức nồng độ: {target_c:.3f} {unit_name}**")
                 if len(candidates) > 1:
                     option_labels = [
-                        f"🌟 Option {i+1}: {c['n_samples']} mẫu | Power = {c['power_achieve']:.3f} | CD/Swrl = {c['cd_swrl']} | Sr/Swrl = {c['sr_swrl']} | K = {c['k_factor']} | RL = {c['rejection_limit']:.2f}%"
+                        f"🌟 Option {i + 1} (Tra {bang_tra}): {c['n_samples']} mẫu | Power = {c['power_achieve']:.3f} | CD/Swrl = {c['cd_swrl']} | Sr/Swrl = {c['sr_swrl']} | K = {c['k_factor']} | RL = {c['rejection_limit']:.2f}%"
                         for i, c in enumerate(candidates)
                     ]
-                    selected_label = st.selectbox("Chọn phương án chốt:", options=option_labels, index=0, key=f"pick_{test_name}_{machine_name}_{idx}", label_visibility="collapsed")
+                    selected_label = st.selectbox("Chọn phương án chốt:", options=option_labels, index=0,
+                                                  key=f"pick_{test_name}_{machine_name}_{idx}",
+                                                  label_visibility="collapsed")
                     picked_cand = candidates[option_labels.index(selected_label)]
                 else:
                     picked_cand = candidates[0]
-                    st.info(f"💡 Cần {picked_cand['n_samples']} mẫu | Power = {picked_cand['power_achieve']:.3f} | CD/Swrl = {picked_cand['cd_swrl']} | Sr/Swrl = {picked_cand['sr_swrl']} | K = {picked_cand['k_factor']} | RL = {picked_cand['rejection_limit']:.2f}%")
+                    st.info(
+                        f"💡 Tra {bang_tra} | Cần {picked_cand['n_samples']} mẫu | Power = {picked_cand['power_achieve']:.3f} | CD/Swrl = {picked_cand['cd_swrl']} | Sr/Swrl = {picked_cand['sr_swrl']} | K = {picked_cand['k_factor']} | RL = {picked_cand['rejection_limit']:.2f}%")
+
+                # BỔ SUNG THUẬT TOÁN ĐỂ LƯU OPTIONS VÀO DATABASE MÀ KHÔNG BỊ TRỐNG
+                row_to_save = row.copy().to_dict()
+                row_to_save["unit"] = unit_name
+                row_to_save["power_achieve"] = picked_cand["power_achieve"]
+                row_to_save["cd_swrl"] = picked_cand["cd_swrl"]
+                row_to_save["sr_swrl"] = picked_cand["sr_swrl"]
+                row_to_save["k_factor"] = picked_cand["k_factor"]
+                row_to_save["rejection_limit"] = picked_cand["rejection_limit"]
+                row_to_save["n_samples"] = picked_cand["n_samples"]
+                row_to_save["Ghi chú"] = picked_cand.get("note", f"Đạt chuẩn (Mốc tra bảng: CD/Swrl={picked_cand['cd_swrl']}, Sr/Swrl={picked_cand['sr_swrl']})")
+                chosen_final_rows.append(row_to_save)
 
         if st.button("✅ LƯU CẤU HÌNH VÀO DATABASE", type="primary", use_container_width=True):
             save_test_setup(test_name, machine_name, machine_id, pd.DataFrame(chosen_final_rows))
@@ -386,18 +398,15 @@ with tab_stage1:
 with tab_db_setup:
     st.markdown("### 📂 Cấu hình Stage 1 hiện có")
 
-    # --- KHU VỰC THÊM TÍNH NĂNG IMPORT FILE ---
     with st.expander("📥 KHÔI PHỤC / IMPORT DỮ LIỆU TỪ FILE (.CSV, .XLSX)", expanded=False):
         uploaded_file = st.file_uploader("Kéo thả file dữ liệu đã xuất từ hệ thống vào đây", type=["csv", "xlsx"])
         if uploaded_file is not None:
             try:
-                # Đọc file dựa vào đuôi mở rộng
                 if uploaded_file.name.endswith(".csv"):
                     df_import = pd.read_csv(uploaded_file)
                 else:
                     df_import = pd.read_excel(uploaded_file)
 
-                # Kiểm tra tính hợp lệ của file (Phải có ít nhất test_name và target_conc)
                 if "test_name" in df_import.columns and "target_conc" in df_import.columns:
                     st.info(
                         f"Phát hiện **{len(df_import)}** dòng cấu hình hợp lệ. Dữ liệu trùng lặp sẽ tự động được ghi đè.")
@@ -414,7 +423,6 @@ with tab_db_setup:
                         "❌ File không đúng định dạng! Vui lòng chỉ tải lên file được xuất trực tiếp từ hệ thống phần mềm này.")
             except Exception as e:
                 st.error(f"Đã xảy ra lỗi khi đọc file: {e}")
-    # ------------------------------------------
 
     all_saved_df = load_all_setups()
     if not all_saved_df.empty:

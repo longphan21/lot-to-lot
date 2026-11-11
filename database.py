@@ -1,69 +1,159 @@
 import sqlite3
 import pandas as pd
 from pathlib import Path
+from datetime import datetime, timedelta  # <--- Khai báo thêm thư viện xử lý thời gian
 
 DB_PATH = Path(__file__).parent / "lot_to_lot_data.db"
 
+
 def get_connection():
     return sqlite3.connect(DB_PATH)
+
 
 def init_db():
     with get_connection() as conn:
         cursor = conn.cursor()
         cursor.execute("""
-            CREATE TABLE IF NOT EXISTS stage1_setup (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                test_name TEXT NOT NULL,
-                machine TEXT NOT NULL,
-                machine_id TEXT,
-                is_selected INTEGER DEFAULT 1,
-                target_conc REAL NOT NULL,
-                unit TEXT DEFAULT 'mmol/L',
-                tea_pct REAL NOT NULL,
-                swrl_pct REAL NOT NULL,
-                sr_pct REAL NOT NULL,
-                cd_pct REAL,
-                cd_swrl REAL,
-                sr_swrl REAL,
-                power_achieve REAL,
-                n_samples INTEGER,
-                rejection_limit REAL,
-                k_factor REAL,
-                note TEXT,
-                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )
-        """)
+                       CREATE TABLE IF NOT EXISTS stage1_setup
+                       (
+                           id
+                           INTEGER
+                           PRIMARY
+                           KEY
+                           AUTOINCREMENT,
+                           test_name
+                           TEXT
+                           NOT
+                           NULL,
+                           machine
+                           TEXT
+                           NOT
+                           NULL,
+                           machine_id
+                           TEXT,
+                           is_selected
+                           INTEGER
+                           DEFAULT
+                           1,
+                           target_conc
+                           REAL
+                           NOT
+                           NULL,
+                           unit
+                           TEXT
+                           DEFAULT
+                           'mmol/L',
+                           tea_pct
+                           REAL
+                           NOT
+                           NULL,
+                           swrl_pct
+                           REAL
+                           NOT
+                           NULL,
+                           sr_pct
+                           REAL
+                           NOT
+                           NULL,
+                           cd_pct
+                           REAL,
+                           cd_swrl
+                           REAL,
+                           sr_swrl
+                           REAL,
+                           power_achieve
+                           REAL,
+                           n_samples
+                           INTEGER,
+                           rejection_limit
+                           REAL,
+                           k_factor
+                           REAL,
+                           note
+                           TEXT,
+                           updated_at
+                           TIMESTAMP
+                           DEFAULT
+                           CURRENT_TIMESTAMP
+                       )
+                       """)
         cursor.execute("""
-            CREATE TABLE IF NOT EXISTS stage2_evaluations (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                eval_date TEXT NOT NULL,
-                test_name TEXT NOT NULL,
-                machine TEXT NOT NULL,
-                machine_id TEXT,
-                unit TEXT,
-                lot_old TEXT NOT NULL,
-                lot_new TEXT NOT NULL,
-                level_name TEXT,
-                target_conc REAL,
-                sid TEXT,
-                val_old REAL,
-                val_new REAL,
-                diff_d REAL,
-                mean_d REAL,
-                mean_d_pct REAL,
-                rl_pct REAL,
-                k_factor REAL,
-                status TEXT,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )
-        """)
+                       CREATE TABLE IF NOT EXISTS stage2_evaluations
+                       (
+                           id
+                           INTEGER
+                           PRIMARY
+                           KEY
+                           AUTOINCREMENT,
+                           eval_date
+                           TEXT
+                           NOT
+                           NULL,
+                           test_name
+                           TEXT
+                           NOT
+                           NULL,
+                           machine
+                           TEXT
+                           NOT
+                           NULL,
+                           machine_id
+                           TEXT,
+                           unit
+                           TEXT,
+                           lot_old
+                           TEXT
+                           NOT
+                           NULL,
+                           lot_new
+                           TEXT
+                           NOT
+                           NULL,
+                           level_name
+                           TEXT,
+                           target_conc
+                           REAL,
+                           sid
+                           TEXT,
+                           val_old
+                           REAL,
+                           val_new
+                           REAL,
+                           diff_d
+                           REAL,
+                           mean_d
+                           REAL,
+                           mean_d_pct
+                           REAL,
+                           rl_pct
+                           REAL,
+                           k_factor
+                           REAL,
+                           status
+                           TEXT,
+                           created_at
+                           TIMESTAMP
+                           DEFAULT
+                           CURRENT_TIMESTAMP
+                       )
+                       """)
         conn.commit()
+
+        try:
+            cursor.execute("ALTER TABLE stage2_evaluations ADD COLUMN reagent_name TEXT DEFAULT ''")
+            conn.commit()
+        except sqlite3.OperationalError:
+            pass
+
 
 def save_test_setup(test_name: str, machine: str, machine_id: str, df_rows: pd.DataFrame):
     init_db()
     test_clean = test_name.strip().upper()
     machine_clean = machine.strip()
     mach_id_clean = machine_id.strip()
+
+    # --- TỰ ĐỘNG LẤY GIỜ VIỆT NAM (UTC+7) ---
+    vn_now = (datetime.utcnow() + timedelta(hours=7)).strftime('%Y-%m-%d %H:%M:%S')
 
     with get_connection() as conn:
         cursor = conn.cursor()
@@ -73,27 +163,37 @@ def save_test_setup(test_name: str, machine: str, machine_id: str, df_rows: pd.D
         )
         for _, row in df_rows.iterrows():
             cursor.execute("""
-                INSERT INTO stage1_setup (
-                    test_name, machine, machine_id, is_selected, target_conc, unit,
-                    tea_pct, swrl_pct, sr_pct, cd_pct, cd_swrl, sr_swrl,
-                    power_achieve, n_samples, rejection_limit, k_factor, note
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, (
-                test_clean, machine_clean, mach_id_clean,
-                1 if bool(row.get("Chọn chạy (Vàng)", False)) else 0,
-                float(row["Target concentration"]), str(row.get("Đơn vị", "mmol/L")),
-                float(row["TEa%"]), float(row["Swrl = CVwrl %"]), float(row["Sr = CVr %"]),
-                float(row["CD% (Critical Difference)"]), float(row["CD/Swrl"]),
-                float(row["Sr/Swrl"]), float(row["Power achieve"]),
-                int(row["Number of sample each concentration"]),
-                float(row["Rejection limit"]), float(row["k"]), str(row.get("Ghi chú", ""))
-            ))
+                           INSERT INTO stage1_setup (test_name, machine, machine_id, is_selected, target_conc, unit,
+                                                     tea_pct, swrl_pct, sr_pct, cd_pct, cd_swrl, sr_swrl,
+                                                     power_achieve, n_samples, rejection_limit, k_factor, note,
+                                                     updated_at)
+                           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                           """, (
+                               test_clean, machine_clean, mach_id_clean,
+                               1 if bool(row.get("Chọn chạy (Vàng)", False)) else 0,
+                               float(row.get("Target concentration", 0)),
+                               str(row.get("unit", "mmol/L")),
+                               float(row.get("TEa%", 0)),
+                               float(row.get("Swrl = CVwrl %", 0)),
+                               float(row.get("Sr = CVr %", 0)),
+                               0.0,
+                               float(row.get("cd_swrl", 0)),
+                               float(row.get("sr_swrl", 0)),
+                               float(row.get("power_achieve", 0)),
+                               int(row.get("n_samples", 0)),
+                               float(row.get("rejection_limit", 0)),
+                               float(row.get("k_factor", 0)),
+                               str(row.get("Ghi chú", "")),
+                               vn_now  # <--- ÉP GIỜ VIỆT NAM VÀO ĐÂY
+                           ))
         conn.commit()
+
 
 def load_all_setups() -> pd.DataFrame:
     init_db()
     with get_connection() as conn:
         return pd.read_sql_query("SELECT * FROM stage1_setup ORDER BY test_name, machine, target_conc", conn)
+
 
 def load_specific_setup(test_name: str, machine: str) -> pd.DataFrame:
     init_db()
@@ -103,35 +203,63 @@ def load_specific_setup(test_name: str, machine: str) -> pd.DataFrame:
             conn, params=(test_name.strip().upper(), machine.strip())
         )
 
+
 def delete_specific_setup(test_name: str, machine: str):
     init_db()
     with get_connection() as conn:
-        conn.execute("DELETE FROM stage1_setup WHERE UPPER(test_name) = ? AND machine = ?", (test_name.strip().upper(), machine.strip()))
+        conn.execute("DELETE FROM stage1_setup WHERE UPPER(test_name) = ? AND machine = ?",
+                     (test_name.strip().upper(), machine.strip()))
         conn.commit()
+
 
 def save_stage2_evaluation(records: list):
     init_db()
+    # --- TỰ ĐỘNG LẤY GIỜ VIỆT NAM (UTC+7) CHO STAGE 2 ---
+    vn_now = (datetime.utcnow() + timedelta(hours=7)).strftime('%Y-%m-%d %H:%M:%S')
+
     with get_connection() as conn:
         cursor = conn.cursor()
         for r in records:
+            # Nếu app.py không truyền created_at thì lấy giờ Việt Nam hiện tại
+            record_time = r.get('created_at') if r.get('created_at') else vn_now
+
             cursor.execute("""
-                INSERT INTO stage2_evaluations (
-                    eval_date, test_name, machine, machine_id, unit, lot_old, lot_new,
-                    level_name, target_conc, sid, val_old, val_new, diff_d,
-                    mean_d, mean_d_pct, rl_pct, k_factor, status
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, (
-                r["eval_date"], r["test_name"], r["machine"], r["machine_id"], r["unit"],
-                r["lot_old"], r["lot_new"], r["level_name"], r["target_conc"],
-                r["sid"], r["val_old"], r["val_new"], r["diff_d"],
-                r["mean_d"], r["mean_d_pct"], r["rl_pct"], r["k_factor"], r["status"]
-            ))
+                           INSERT INTO stage2_evaluations (created_at, eval_date, test_name, machine, machine_id, unit,
+                                                           lot_old, lot_new,
+                                                           level_name, target_conc, sid, val_old, val_new, diff_d,
+                                                           mean_d,
+                                                           mean_d_pct, rl_pct, k_factor, status, reagent_name)
+                           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                           """, (
+                               record_time,
+                               r.get('eval_date'),
+                               r.get('test_name'),
+                               r.get('machine'),
+                               r.get('machine_id', ''),
+                               r.get('unit', ''),
+                               r.get('lot_old'),
+                               r.get('lot_new'),
+                               r.get('level_name'),
+                               r.get('target_conc'),
+                               r.get('sid'),
+                               r.get('val_old'),
+                               r.get('val_new'),
+                               r.get('diff_d'),
+                               r.get('mean_d'),
+                               r.get('mean_d_pct'),
+                               r.get('rl_pct'),
+                               r.get('k_factor'),
+                               r.get('status'),
+                               r.get('reagent_name', '')
+                           ))
         conn.commit()
+
 
 def load_stage2_history() -> pd.DataFrame:
     init_db()
     with get_connection() as conn:
         return pd.read_sql_query("SELECT * FROM stage2_evaluations ORDER BY eval_date DESC, id DESC", conn)
+
 
 def delete_stage2_evaluation(created_at: str):
     init_db()
@@ -139,14 +267,14 @@ def delete_stage2_evaluation(created_at: str):
         conn.execute("DELETE FROM stage2_evaluations WHERE created_at = ?", (created_at,))
         conn.commit()
 
+
 def import_stage1_from_dataframe(df: pd.DataFrame) -> int:
-    """Đọc dữ liệu từ file CSV/Excel và đẩy vào Database (Xử lý được cả file từ phiên bản cũ)"""
     init_db()
     imported_count = 0
+    vn_now = (datetime.utcnow() + timedelta(hours=7)).strftime('%Y-%m-%d %H:%M:%S')
+
     with get_connection() as conn:
         cursor = conn.cursor()
-
-        # 1. Nhóm theo Tên Xét Nghiệm và Dòng Máy để xóa dữ liệu cũ (tránh trùng lặp khi import 2 lần)
         unique_groups = df[['test_name', 'machine']].drop_duplicates()
         for _, group in unique_groups.iterrows():
             t_name = str(group['test_name']).strip().upper() if not pd.isna(group['test_name']) else ""
@@ -154,7 +282,6 @@ def import_stage1_from_dataframe(df: pd.DataFrame) -> int:
             if t_name and m_name:
                 cursor.execute("DELETE FROM stage1_setup WHERE UPPER(test_name) = ? AND machine = ?", (t_name, m_name))
 
-        # 2. Quét từng dòng của file CSV để nạp vào DB
         for _, row in df.iterrows():
             test_clean = str(row['test_name']).strip().upper() if not pd.isna(row.get('test_name')) else ""
             machine_clean = str(row['machine']).strip() if not pd.isna(row.get('machine')) else ""
@@ -162,7 +289,6 @@ def import_stage1_from_dataframe(df: pd.DataFrame) -> int:
             if not test_clean or not machine_clean:
                 continue
 
-            # Xử lý tương thích ngược: Nếu CSV cũ chưa có cột machine_id thì để trống
             machine_id = str(row['machine_id']).strip() if 'machine_id' in df.columns and not pd.isna(
                 row['machine_id']) else ""
             unit_str = str(row['unit']).strip() if 'unit' in df.columns and not pd.isna(row['unit']) else "mmol/L"
@@ -171,8 +297,9 @@ def import_stage1_from_dataframe(df: pd.DataFrame) -> int:
             cursor.execute("""
                            INSERT INTO stage1_setup (test_name, machine, machine_id, is_selected, target_conc, unit,
                                                      tea_pct, swrl_pct, sr_pct, cd_pct, cd_swrl, sr_swrl,
-                                                     power_achieve, n_samples, rejection_limit, k_factor, note)
-                           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                                     power_achieve, n_samples, rejection_limit, k_factor, note,
+                                                     updated_at)
+                           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                            """, (
                                test_clean, machine_clean, machine_id,
                                int(row.get('is_selected', 1)),
@@ -188,7 +315,8 @@ def import_stage1_from_dataframe(df: pd.DataFrame) -> int:
                                int(row.get('n_samples', 0)),
                                float(row.get('rejection_limit', 0)),
                                float(row.get('k_factor', 0)),
-                               note_str
+                               note_str,
+                               vn_now  # <--- ÉP GIỜ VIỆT NAM VÀO ĐÂY
                            ))
             imported_count += 1
         conn.commit()
