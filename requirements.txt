@@ -3,4 +3,5 @@ pandas
 scipy
 python-docx
 openpyxl
-psycopg2-binary
+gspread
+oauth2client
