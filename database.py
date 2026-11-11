@@ -3,7 +3,6 @@ import gspread
 import pandas as pd
 from datetime import datetime, timedelta
 
-
 # ==========================================
 # 1. HÀM KẾT NỐI GOOGLE SHEETS
 # ==========================================
@@ -20,8 +19,8 @@ def get_gsheet_client():
         # Chạy local trên PyCharm
         client = gspread.service_account(filename="credentials.json")
 
-    # Tên file Google Sheet
-    spreadsheet = client.open("Lot_To_Lot_DB")
+    # Gọi trực tiếp bằng URL thay vì tên file để tránh lỗi APIError
+    spreadsheet = client.open_by_url("https://docs.google.com/spreadsheets/d/1DQIDnYgzcvmkmrlL3ohTH6SS7S19MWWVisQlT1Aq-f0/edit?gid=0#gid=0")
     return spreadsheet
 
 
