@@ -1,26 +1,27 @@
-import sqlite3
+import psycopg2
 import pandas as pd
-from pathlib import Path
-from datetime import datetime, timedelta  # <--- Khai báo thêm thư viện xử lý thời gian
+from datetime import datetime, timedelta
+import streamlit as st
 
-DB_PATH = Path(__file__).parent / "lot_to_lot_data.db"
+# Lấy chuỗi kết nối từ Secrets của Streamlit
+DB_URL = st.secrets["SUPABASE_URL"]
 
 
 def get_connection():
-    return sqlite3.connect(DB_PATH)
+    return psycopg2.connect(DB_URL)
 
 
 def init_db():
     with get_connection() as conn:
         cursor = conn.cursor()
+        # Dùng SERIAL thay cho AUTOINCREMENT của PostgreSQL
         cursor.execute("""
                        CREATE TABLE IF NOT EXISTS stage1_setup
                        (
                            id
-                           INTEGER
+                           SERIAL
                            PRIMARY
-                           KEY
-                           AUTOINCREMENT,
+                           KEY,
                            test_name
                            TEXT
                            NOT
@@ -81,10 +82,9 @@ def init_db():
                        CREATE TABLE IF NOT EXISTS stage2_evaluations
                        (
                            id
-                           INTEGER
+                           SERIAL
                            PRIMARY
-                           KEY
-                           AUTOINCREMENT,
+                           KEY,
                            eval_date
                            TEXT
                            NOT
@@ -131,6 +131,10 @@ def init_db():
                            REAL,
                            status
                            TEXT,
+                           reagent_name
+                           TEXT
+                           DEFAULT
+                           '',
                            created_at
                            TIMESTAMP
                            DEFAULT
@@ -139,26 +143,18 @@ def init_db():
                        """)
         conn.commit()
 
-        try:
-            cursor.execute("ALTER TABLE stage2_evaluations ADD COLUMN reagent_name TEXT DEFAULT ''")
-            conn.commit()
-        except sqlite3.OperationalError:
-            pass
-
 
 def save_test_setup(test_name: str, machine: str, machine_id: str, df_rows: pd.DataFrame):
     init_db()
     test_clean = test_name.strip().upper()
     machine_clean = machine.strip()
     mach_id_clean = machine_id.strip()
-
-    # --- TỰ ĐỘNG LẤY GIỜ VIỆT NAM (UTC+7) ---
     vn_now = (datetime.utcnow() + timedelta(hours=7)).strftime('%Y-%m-%d %H:%M:%S')
 
     with get_connection() as conn:
         cursor = conn.cursor()
         cursor.execute(
-            "DELETE FROM stage1_setup WHERE UPPER(test_name) = ? AND machine = ?",
+            "DELETE FROM stage1_setup WHERE UPPER(test_name) = %s AND machine = %s",
             (test_clean, machine_clean)
         )
         for _, row in df_rows.iterrows():
@@ -167,7 +163,7 @@ def save_test_setup(test_name: str, machine: str, machine_id: str, df_rows: pd.D
                                                      tea_pct, swrl_pct, sr_pct, cd_pct, cd_swrl, sr_swrl,
                                                      power_achieve, n_samples, rejection_limit, k_factor, note,
                                                      updated_at)
-                           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                           VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                            """, (
                                test_clean, machine_clean, mach_id_clean,
                                1 if bool(row.get("Chọn chạy (Vàng)", False)) else 0,
@@ -184,7 +180,7 @@ def save_test_setup(test_name: str, machine: str, machine_id: str, df_rows: pd.D
                                float(row.get("rejection_limit", 0)),
                                float(row.get("k_factor", 0)),
                                str(row.get("Ghi chú", "")),
-                               vn_now  # <--- ÉP GIỜ VIỆT NAM VÀO ĐÂY
+                               vn_now
                            ))
         conn.commit()
 
@@ -199,7 +195,7 @@ def load_specific_setup(test_name: str, machine: str) -> pd.DataFrame:
     init_db()
     with get_connection() as conn:
         return pd.read_sql_query(
-            "SELECT * FROM stage1_setup WHERE UPPER(test_name) = ? AND machine = ? ORDER BY target_conc",
+            "SELECT * FROM stage1_setup WHERE UPPER(test_name) = %s AND machine = %s ORDER BY target_conc",
             conn, params=(test_name.strip().upper(), machine.strip())
         )
 
@@ -207,29 +203,27 @@ def load_specific_setup(test_name: str, machine: str) -> pd.DataFrame:
 def delete_specific_setup(test_name: str, machine: str):
     init_db()
     with get_connection() as conn:
-        conn.execute("DELETE FROM stage1_setup WHERE UPPER(test_name) = ? AND machine = ?",
-                     (test_name.strip().upper(), machine.strip()))
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM stage1_setup WHERE UPPER(test_name) = %s AND machine = %s",
+                       (test_name.strip().upper(), machine.strip()))
         conn.commit()
 
 
 def save_stage2_evaluation(records: list):
     init_db()
-    # --- TỰ ĐỘNG LẤY GIỜ VIỆT NAM (UTC+7) CHO STAGE 2 ---
     vn_now = (datetime.utcnow() + timedelta(hours=7)).strftime('%Y-%m-%d %H:%M:%S')
 
     with get_connection() as conn:
         cursor = conn.cursor()
         for r in records:
-            # Nếu app.py không truyền created_at thì lấy giờ Việt Nam hiện tại
             record_time = r.get('created_at') if r.get('created_at') else vn_now
-
             cursor.execute("""
                            INSERT INTO stage2_evaluations (created_at, eval_date, test_name, machine, machine_id, unit,
                                                            lot_old, lot_new,
                                                            level_name, target_conc, sid, val_old, val_new, diff_d,
                                                            mean_d,
                                                            mean_d_pct, rl_pct, k_factor, status, reagent_name)
-                           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                           VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                            """, (
                                record_time,
                                r.get('eval_date'),
@@ -264,7 +258,8 @@ def load_stage2_history() -> pd.DataFrame:
 def delete_stage2_evaluation(created_at: str):
     init_db()
     with get_connection() as conn:
-        conn.execute("DELETE FROM stage2_evaluations WHERE created_at = ?", (created_at,))
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM stage2_evaluations WHERE created_at = %s", (created_at,))
         conn.commit()
 
 
@@ -280,7 +275,8 @@ def import_stage1_from_dataframe(df: pd.DataFrame) -> int:
             t_name = str(group['test_name']).strip().upper() if not pd.isna(group['test_name']) else ""
             m_name = str(group['machine']).strip() if not pd.isna(group['machine']) else ""
             if t_name and m_name:
-                cursor.execute("DELETE FROM stage1_setup WHERE UPPER(test_name) = ? AND machine = ?", (t_name, m_name))
+                cursor.execute("DELETE FROM stage1_setup WHERE UPPER(test_name) = %s AND machine = %s",
+                               (t_name, m_name))
 
         for _, row in df.iterrows():
             test_clean = str(row['test_name']).strip().upper() if not pd.isna(row.get('test_name')) else ""
@@ -299,7 +295,7 @@ def import_stage1_from_dataframe(df: pd.DataFrame) -> int:
                                                      tea_pct, swrl_pct, sr_pct, cd_pct, cd_swrl, sr_swrl,
                                                      power_achieve, n_samples, rejection_limit, k_factor, note,
                                                      updated_at)
-                           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                           VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                            """, (
                                test_clean, machine_clean, machine_id,
                                int(row.get('is_selected', 1)),
@@ -316,7 +312,7 @@ def import_stage1_from_dataframe(df: pd.DataFrame) -> int:
                                float(row.get('rejection_limit', 0)),
                                float(row.get('k_factor', 0)),
                                note_str,
-                               vn_now  # <--- ÉP GIỜ VIỆT NAM VÀO ĐÂY
+                               vn_now
                            ))
             imported_count += 1
         conn.commit()
