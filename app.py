@@ -1,7 +1,7 @@
 import subprocess
 import tempfile
 import os
-import io
+import time
 from datetime import date
 import streamlit as st
 import pandas as pd
@@ -9,8 +9,8 @@ from clsi_engine import get_candidate_options_for_row, evaluate_stage2_level
 from report_generator import generate_report_docx
 from database import (
     init_db, save_test_setup, load_all_setups, load_specific_setup,
-    delete_specific_setup, save_stage2_evaluation, load_stage2_history, delete_stage2_evaluation,
-    import_stage1_from_dataframe
+    delete_specific_setup, save_stage2_evaluation, load_stage2_history,
+    delete_stage2_evaluation, import_stage1_from_dataframe
 )
 
 st.set_page_config(page_title="CLSI EP26 - Lot-to-Lot", layout="wide", initial_sidebar_state="collapsed")
@@ -26,7 +26,10 @@ DEFAULT_SAMPLES = {
     ])
 }
 
-# ĐÃ BỔ SUNG TAB TỔNG QUAN LOT (DASHBOARD)
+# Tải dữ liệu 1 lần ở đầu phiên (đã được cache trong database.py)
+all_setups = load_all_setups()
+hist_df_master = load_stage2_history()
+
 tab_stage2, tab_history, tab_dashboard, tab_stage1, tab_db_setup = st.tabs([
     "🧪 1. Đánh giá Mẫu thực tế (Stage 2)",
     "🕒 2. Lịch sử Đánh giá",
@@ -51,7 +54,7 @@ def convert_docx_to_pdf_bytes(docx_bytes):
             try:
                 subprocess.run(['soffice', '--headless', '--convert-to', 'pdf', docx_path, '--outdir', tmpdir],
                                check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-            except:
+            except Exception:
                 return None
         except Exception:
             return None
@@ -66,7 +69,6 @@ def convert_docx_to_pdf_bytes(docx_bytes):
 # TAB 1: GIAI ĐOẠN 2 - ĐÁNH GIÁ MẪU HẰNG NGÀY
 # ==============================================================================
 with tab_stage2:
-    all_setups = load_all_setups()
     active_setups = all_setups[all_setups["is_selected"] == 1] if not all_setups.empty else pd.DataFrame()
 
     if active_setups.empty:
@@ -144,7 +146,7 @@ with tab_stage2:
                         m1, m2, m3 = st.columns(3)
                         m1.metric("Trung bình d", f"{eval_res['mean_d']:.4f}")
                         m2.metric("Trung bình độ chệch (%)", f"{eval_res['mean_d_pct']:.3f}%")
-                        m3.metric(f"Rejection Limit", f"{eval_res['rl_pct']:.3f}%")
+                        m3.metric("Rejection Limit", f"{eval_res['rl_pct']:.3f}%")
 
                         if eval_res["result"] == "PASS":
                             st.success(
@@ -172,13 +174,15 @@ with tab_stage2:
             if st.button("💾 LƯU KẾT QUẢ VÀO LỊCH SỬ", type="primary", use_container_width=True):
                 save_stage2_evaluation(flat_records_to_save)
                 st.success("Đã lưu biên bản đánh giá! Vui lòng qua Tab 2 để xuất file Word.")
+                time.sleep(0.5)
+                st.rerun()
 
 # ==============================================================================
 # TAB 2: LỊCH SỬ ĐÁNH GIÁ (XUẤT WORD & XÓA)
 # ==============================================================================
 with tab_history:
     st.markdown("### 🕒 Lịch sử Đánh giá Mẫu thực tế")
-    hist_df = load_stage2_history()
+    hist_df = hist_df_master.copy()
 
     if hist_df.empty:
         st.info("Chưa có đợt đánh giá nào được lưu.")
@@ -255,28 +259,24 @@ with tab_history:
                             st.rerun()
 
 # ==============================================================================
-# TAB 3: TỔNG QUAN LOT (DASHBOARD MỚI)
+# TAB 3: TỔNG QUAN LOT (DASHBOARD)
 # ==============================================================================
 with tab_dashboard:
     st.markdown("### 📊 Bảng điều khiển Hiện trạng Hóa chất (LOT)")
-    df_hist_dash = load_stage2_history()
+    df_hist_dash = hist_df_master.copy()
 
     if df_hist_dash.empty:
         st.info("Chưa có dữ liệu đánh giá.")
     else:
-        # Làm sạch và điền rỗng cho reagent_name
         df_hist_dash['reagent_name'] = df_hist_dash['reagent_name'].fillna('').astype(str).str.strip()
         df_hist_dash['eval_date_obj'] = pd.to_datetime(df_hist_dash['eval_date'])
 
-        # Lọc bỏ trùng lặp (vì 1 đợt đánh giá có nhiều levels nhưng cùng chung mã created_at)
         df_unique_evals = df_hist_dash.drop_duplicates(subset=['created_at']).copy()
 
-        # Tách dữ liệu: Sinh hóa (reagent trống) / Huyết học (có reagent)
         df_sh = df_unique_evals[df_unique_evals['reagent_name'] == '']
         df_hh = df_unique_evals[df_unique_evals['reagent_name'] != '']
 
         col_sh, col_hh = st.columns(2)
-
 
         def render_dashboard_section(df_section, title, icon):
             st.markdown(f"#### {icon} {title}")
@@ -289,34 +289,23 @@ with tab_dashboard:
                 with st.container(border=True):
                     st.markdown(f"##### 🖨️ Máy: **{mach}**")
                     df_mach = df_section[df_section['machine'] == mach]
-
-                    # Nhóm theo tên Xét nghiệm
                     test_groups = df_mach.groupby('test_name', sort=False)
 
                     for t_name, group in test_groups:
-                        # Lấy bản ghi đầu tiên (mới nhất vì lịch sử đã sort DESC)
                         latest_eval = group.iloc[0]
                         latest_lot = latest_eval['lot_new']
                         latest_date = latest_eval['eval_date_obj'].strftime('%d/%m/%Y')
                         r_name = latest_eval['reagent_name']
 
-                        # Tên hiển thị trên thanh mở rộng
-                        display_name = f"🧪 {t_name}"
-                        if r_name:
-                            display_name = f"🧪 {t_name} ({r_name})"
+                        display_name = f"🧪 {t_name} ({r_name})" if r_name else f"🧪 {t_name}"
 
                         with st.expander(f"{display_name} | LOT mới nhất: **{latest_lot}** (Đổi: {latest_date})"):
-                            # Tạo bảng lịch sử thay đổi của riêng xét nghiệm này
                             hist_display = group[['eval_date_obj', 'lot_old', 'lot_new', 'status']].copy()
                             hist_display['eval_date_obj'] = hist_display['eval_date_obj'].dt.strftime('%d/%m/%Y')
-
-                            # Chuyển đổi chữ PASS/FAIL sang Tiếng Việt cho đẹp
                             hist_display['status'] = hist_display['status'].map(
                                 {'PASS': '✅ Đạt', 'FAIL': '❌ Trượt'}).fillna(hist_display['status'])
-
                             hist_display.columns = ['Ngày thay', 'LOT cũ', 'LOT mới', 'Kết quả']
                             st.dataframe(hist_display.reset_index(drop=True), use_container_width=True, hide_index=True)
-
 
         with col_sh:
             render_dashboard_section(df_sh, "Sinh hóa - Miễn dịch", "🧬")
@@ -324,10 +313,10 @@ with tab_dashboard:
             render_dashboard_section(df_hh, "Huyết học - HbA1c", "🩸")
 
 # ==============================================================================
-# TAB 4: GIAI ĐOẠN 1 - SETUP THÔNG SỐ (CẬP NHẬT MÃ THIẾT BỊ)
+# TAB 4: GIAI ĐOẠN 1 - SETUP THÔNG SỐ
 # ==============================================================================
 with tab_stage1:
-    all_setups_for_dropdown = load_all_setups()
+    all_setups_for_dropdown = all_setups
 
     with st.container(border=True):
         st.markdown("#### 📌 Thông tin Xét nghiệm & Thiết bị")
@@ -413,11 +402,11 @@ with tab_stage1:
     num_selected_levels = max(1, min(3, len(selected_input) if len(selected_input) > 0 else 1))
 
     if not selected_input.empty:
-        all_options_rows = []
         chosen_final_rows = []
 
         for idx, row in selected_input.iterrows():
-            if pd.isna(row["Target concentration"]) or pd.isna(row["TEa%"]): continue
+            if pd.isna(row["Target concentration"]) or pd.isna(row["TEa%"]):
+                continue
             target_c = float(row["Target concentration"])
             candidates = get_candidate_options_for_row(
                 tea_pct=float(row["TEa%"]), swrl_pct=float(row["Swrl = CVwrl %"]), sr_pct=float(row["Sr = CVr %"]),
@@ -450,13 +439,17 @@ with tab_stage1:
                 row_to_save["k_factor"] = picked_cand["k_factor"]
                 row_to_save["rejection_limit"] = picked_cand["rejection_limit"]
                 row_to_save["n_samples"] = picked_cand["n_samples"]
-                row_to_save["Ghi chú"] = picked_cand.get("note",
-                                                         f"Đạt chuẩn (Mốc tra bảng: CD/Swrl={picked_cand['cd_swrl']}, Sr/Swrl={picked_cand['sr_swrl']})")
+                row_to_save["Ghi chú"] = picked_cand.get(
+                    "note",
+                    f"Đạt chuẩn (Mốc tra bảng: CD/Swrl={picked_cand['cd_swrl']}, Sr/Swrl={picked_cand['sr_swrl']})"
+                )
                 chosen_final_rows.append(row_to_save)
 
         if st.button("✅ LƯU CẤU HÌNH VÀO DATABASE", type="primary", use_container_width=True):
             save_test_setup(test_name, machine_name, machine_id, pd.DataFrame(chosen_final_rows))
             st.success(f"Đã lưu thành công thông số và Mã thiết bị cho {test_name} - {machine_name}!")
+            time.sleep(0.5)
+            st.rerun()
 
 # ==============================================================================
 # TAB 5: DANH MỤC CẤU HÌNH ĐÃ LƯU
@@ -480,8 +473,6 @@ with tab_db_setup:
                         count = import_stage1_from_dataframe(df_import)
                         st.success(
                             f"🎉 Đã khôi phục thành công {count} dòng cấu hình! Hệ thống sẽ tải lại sau 1 giây...")
-                        import time
-
                         time.sleep(1)
                         st.rerun()
                 else:
@@ -490,7 +481,7 @@ with tab_db_setup:
             except Exception as e:
                 st.error(f"Đã xảy ra lỗi khi đọc file: {e}")
 
-    all_saved_df = load_all_setups()
+    all_saved_df = all_setups
     if not all_saved_df.empty:
         st.dataframe(all_saved_df, use_container_width=True, hide_index=True)
         c_d1, c_d2, c_d3 = st.columns([2, 2, 1])
