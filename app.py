@@ -1,3 +1,6 @@
+import subprocess
+import tempfile
+import os
 import io
 from datetime import date
 import streamlit as st
@@ -31,6 +34,36 @@ tab_stage2, tab_history, tab_stage1, tab_db_setup = st.tabs([
     "📂 4. Danh mục XN đã lưu"
 ])
 
+def convert_docx_to_pdf_bytes(docx_bytes):
+    with tempfile.TemporaryDirectory() as tmpdir:
+        docx_path = os.path.join(tmpdir, "report.docx")
+        pdf_path = os.path.join(tmpdir, "report.pdf")
+
+        # Ghi file Word tạm thời vào bộ nhớ
+        with open(docx_path, "wb") as f:
+            f.write(docx_bytes)
+
+        # Kích hoạt LibreOffice ẩn để chuyển đổi sang PDF
+        try:
+            # Dành cho Streamlit Cloud (Linux)
+            subprocess.run(['libreoffice', '--headless', '--convert-to', 'pdf', docx_path, '--outdir', tmpdir],
+                           check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        except FileNotFoundError:
+            try:
+                # Dành cho lúc bạn test ở máy viện (nếu Windows đã cài LibreOffice)
+                subprocess.run(['soffice', '--headless', '--convert-to', 'pdf', docx_path, '--outdir', tmpdir],
+                               check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            except:
+                return None
+        except Exception:
+            return None
+
+        # Đọc file PDF vừa tạo và trả về dữ liệu
+        if os.path.exists(pdf_path):
+            with open(pdf_path, "rb") as f:
+                return f.read()
+    return None
+
 # ==============================================================================
 # TAB 1: GIAI ĐOẠN 2 - ĐÁNH GIÁ MẪU HẰNG NGÀY
 # ==============================================================================
@@ -60,7 +93,7 @@ with tab_stage2:
                     eval_machine_id = str(mach_df["machine_id"].iloc[0])
 
             with c3:
-                eval_date = st.date_input("Ngày thực hiện:", value=date.today(), key="s2_date")
+                eval_date = st.date_input("Ngày thực hiện:", value=date.today(), key="s2_date", format="DD/MM/YYYY")
             with c4:
                 lot_old = st.text_input("Số LOT cũ:", value="82273UD00", key="s2_lot_old").strip()
             with c5:
@@ -164,26 +197,33 @@ with tab_history:
                 mach_id = first_row.get('machine_id', '')
                 l_old = first_row['lot_old']
                 l_new = first_row['lot_new']
+
+                # Giữ nguyên e_date_str cho hàm Word xử lý cắt chuỗi
                 e_date_str = first_row['eval_date'].strftime('%Y-%m-%d')
+                # Tạo biến mới định dạng DD/MM/YYYY chuẩn Việt Nam để hiển thị giao diện
+                display_date_str = first_row['eval_date'].strftime('%d/%m/%Y')
+
                 unit = first_row['unit']
 
-                with st.expander(f"📌 {e_date_str} | {t_name} ({mach}) | LOT: {l_old} ➔ {l_new}", expanded=False):
+                # Thay thế biến ngày tháng ở thẻ expander
+                with st.expander(f"📌 {display_date_str} | {t_name} ({mach}) | LOT: {l_old} ➔ {l_new}", expanded=False):
                     display_cols = ['level_name', 'target_conc', 'sid', 'val_old', 'val_new', 'diff_d', 'mean_d',
                                     'mean_d_pct', 'rl_pct', 'status']
                     st.dataframe(group[display_cols].style.format(precision=3), use_container_width=True,
                                  hide_index=True)
 
                     st.write("")
-                    col_dl, col_del = st.columns([1, 1])
+                    st.write("")
+                    # Chia làm 3 cột bằng nhau
+                    col_word, col_pdf, col_del = st.columns([1, 1, 1])
 
-                    with col_dl:
-                        # Chuẩn bị dữ liệu cho file Word
+                    with col_word:
                         setup_df = all_setups[(all_setups['test_name'] == t_name) & (all_setups['machine'] == mach)]
                         docx_file = generate_report_docx(
                             e_date_str, t_name, unit, mach, mach_id, l_old, l_new, setup_df, group
                         )
                         st.download_button(
-                            label="📄 XUẤT BÁO CÁO (FILE WORD)",
+                            label="📄 XUẤT WORD",
                             data=docx_file,
                             file_name=f"LotToLot_{t_name}_{l_old}_{l_new}.docx",
                             mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
@@ -191,9 +231,30 @@ with tab_history:
                             use_container_width=True
                         )
 
+                    with col_pdf:
+                        # Thuật toán: Nút Tạo PDF -> Xử lý (chờ 3s) -> Nút Tải PDF
+                        if f"pdf_ready_{created_at}" not in st.session_state:
+                            if st.button("📕 TẠO FILE PDF", key=f"create_pdf_{created_at}", use_container_width=True):
+                                with st.spinner("Đang vẽ PDF..."):
+                                    pdf_bytes = convert_docx_to_pdf_bytes(docx_file.getvalue())
+                                    if pdf_bytes:
+                                        st.session_state[f"pdf_bytes_{created_at}"] = pdf_bytes
+                                        st.session_state[f"pdf_ready_{created_at}"] = True
+                                        st.rerun()
+                                    else:
+                                        st.error("Chưa cài LibreOffice trên Cloud!")
+                        else:
+                            st.download_button(
+                                label="⬇️ TẢI PDF XUỐNG",
+                                data=st.session_state[f"pdf_bytes_{created_at}"],
+                                file_name=f"LotToLot_{t_name}_{l_old}_{l_new}.pdf",
+                                mime="application/pdf",
+                                key=f"dl_pdf_{created_at}",
+                                use_container_width=True
+                            )
+
                     with col_del:
-                        if st.button(f"❌ Xóa toàn bộ đợt đánh giá này", key=f"del_hist_{created_at}",
-                                     use_container_width=True):
+                        if st.button("❌ Xóa đợt này", key=f"del_hist_{created_at}", use_container_width=True):
                             delete_stage2_evaluation(created_at)
                             st.rerun()
 
@@ -251,8 +312,12 @@ with tab_stage1:
             unit_name = st.text_input("Đơn vị đo:", value=existing_unit)
 
         with col5:
-            global_target_power = st.selectbox("Power mục tiêu:", options=[0.80, 0.85, 0.90, 0.95], index=0)
-
+            global_target_power = st.selectbox(
+                "Power tối thiểu:",
+                options=[0.0, 0.50, 0.60, 0.70, 0.80, 0.85, 0.90, 0.95],
+                format_func=lambda x: "Hiển thị tất cả" if x == 0.0 else f">= {x*100}%",
+                index=0  # Mặc định là 0.0 để mở khóa toàn bộ lựa chọn
+            )
     if not saved_df.empty:
         st.info(
             "🔄 Đã tự động lấy dữ liệu cũ từ Database. Bạn hãy nhập thêm [Mã thiết bị] rồi cuộn xuống bấm Lưu để cập nhật nhé.")
@@ -302,29 +367,14 @@ with tab_stage1:
                 st.markdown(f"📍 **Mức nồng độ: {target_c:.3f} {unit_name}**")
                 if len(candidates) > 1:
                     option_labels = [
-                        f"🏆 Hạng #{i + 1}: Cần {c['n_samples']} mẫu | Power = {c['power_achieve']:.3f} | RL = {c['rejection_limit']:.3f}%"
-                        for i, c in enumerate(candidates)]
-                    selected_label = st.selectbox("Chọn phương án chốt:", options=option_labels, index=0,
-                                                  key=f"pick_{test_name}_{machine_name}_{idx}",
-                                                  label_visibility="collapsed")
+                        f"🌟 Option {i+1}: {c['n_samples']} mẫu | Power = {c['power_achieve']:.3f} | CD/Swrl = {c['cd_swrl']} | Sr/Swrl = {c['sr_swrl']} | K = {c['k_factor']} | RL = {c['rejection_limit']:.2f}%"
+                        for i, c in enumerate(candidates)
+                    ]
+                    selected_label = st.selectbox("Chọn phương án chốt:", options=option_labels, index=0, key=f"pick_{test_name}_{machine_name}_{idx}", label_visibility="collapsed")
                     picked_cand = candidates[option_labels.index(selected_label)]
                 else:
                     picked_cand = candidates[0]
-                    st.info(
-                        f"💡 Cần {picked_cand['n_samples']} mẫu | Power = {picked_cand['power_achieve']:.3f} | RL = {picked_cand['rejection_limit']:.3f}%")
-
-            chosen_final_rows.append({
-                "Chọn chạy (Vàng)": True, "TÊN XN": test_name, "Machine": machine_name,
-                "Target concentration": target_c, "Đơn vị": unit_name,
-                "TEa%": float(row["TEa%"]), "Swrl = CVwrl %": float(row["Swrl = CVwrl %"]),
-                "Sr = CVr %": float(row["Sr = CVr %"]),
-                "CD% (Critical Difference)": picked_cand["cd_pct"], "CD/Swrl": picked_cand["cd_swrl"],
-                "Sr/Swrl": picked_cand["sr_swrl"],
-                "Power achieve": picked_cand["power_achieve"],
-                "Number of sample each concentration": picked_cand["n_samples"],
-                "Rejection limit": picked_cand["rejection_limit"], "k": picked_cand["k_factor"],
-                "Ghi chú": picked_cand["note"]
-            })
+                    st.info(f"💡 Cần {picked_cand['n_samples']} mẫu | Power = {picked_cand['power_achieve']:.3f} | CD/Swrl = {picked_cand['cd_swrl']} | Sr/Swrl = {picked_cand['sr_swrl']} | K = {picked_cand['k_factor']} | RL = {picked_cand['rejection_limit']:.2f}%")
 
         if st.button("✅ LƯU CẤU HÌNH VÀO DATABASE", type="primary", use_container_width=True):
             save_test_setup(test_name, machine_name, machine_id, pd.DataFrame(chosen_final_rows))
