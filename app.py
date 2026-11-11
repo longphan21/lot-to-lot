@@ -512,7 +512,7 @@ with tab_dashboard:
             machines = sorted(df_section['machine'].unique())
             for mach in machines:
                 with st.container(border=True):
-                    st.markdown(f"##### : **{mach}**")
+                    st.markdown(f"##### **{mach}**")
                     df_mach = df_section[df_section['machine'] == mach]
                     item_groups = df_mach.groupby(group_by_col, sort=False)
 
