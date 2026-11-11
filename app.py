@@ -485,7 +485,7 @@ with tab_history:
 # TAB 3: TỔNG QUAN LOT (DASHBOARD)
 # ==============================================================================
 with tab_dashboard:
-    st.markdown("### 📊 BẢNG ĐIỀU KHIỂN HIỆN TRẠNG HÓA CHẤT (LOT)")
+    st.markdown("### 📊 TỔNG QUAN CÁC LÔ HÓA CHẤT HIỆN TẠI (LOT)")
     df_hist_dash = hist_df_master.copy()
 
     if df_hist_dash.empty:
