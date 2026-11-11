@@ -203,13 +203,19 @@ with tab_history:
                 mach_id = first_row.get('machine_id', '')
                 l_old = first_row['lot_old']
                 l_new = first_row['lot_new']
-                reagent = first_row.get('reagent_name', '')
+                reagent = str(first_row.get('reagent_name', '')).strip()
+                if reagent.lower() == 'nan':
+                    reagent = ''
 
                 e_date_str = first_row['eval_date'].strftime('%Y-%m-%d')
                 display_date_str = first_row['eval_date'].strftime('%d/%m/%Y')
                 unit = first_row['unit']
 
-                with st.expander(f"📌 {display_date_str} | {t_name} ({mach}) | LOT: {l_old} ➔ {l_new}", expanded=False):
+                # HIỂN THỊ THÊM TÊN HÓA CHẤT Ở TIÊU ĐỀ LỊCH SỬ (NẾU CÓ)
+                reagent_str = f" | Hóa chất: {reagent}" if reagent else ""
+                expander_label = f"📌 {display_date_str} | {t_name} ({mach}){reagent_str} | LOT: {l_old} ➔ {l_new}"
+
+                with st.expander(expander_label, expanded=False):
                     display_cols = ['level_name', 'target_conc', 'sid', 'val_old', 'val_new', 'diff_d', 'mean_d',
                                     'mean_d_pct', 'rl_pct', 'status']
                     st.dataframe(group[display_cols].style.format(precision=3), use_container_width=True,
@@ -269,16 +275,20 @@ with tab_dashboard:
         st.info("Chưa có dữ liệu đánh giá.")
     else:
         df_hist_dash['reagent_name'] = df_hist_dash['reagent_name'].fillna('').astype(str).str.strip()
+        df_hist_dash.loc[df_hist_dash['reagent_name'].str.lower() == 'nan', 'reagent_name'] = ''
         df_hist_dash['eval_date_obj'] = pd.to_datetime(df_hist_dash['eval_date'])
 
+        # Lọc trùng theo đợt đánh giá và sắp xếp mới nhất lên đầu
         df_unique_evals = df_hist_dash.drop_duplicates(subset=['created_at']).copy()
+        df_unique_evals = df_unique_evals.sort_values(by=['eval_date_obj', 'created_at'], ascending=[False, False])
 
         df_sh = df_unique_evals[df_unique_evals['reagent_name'] == '']
         df_hh = df_unique_evals[df_unique_evals['reagent_name'] != '']
 
         col_sh, col_hh = st.columns(2)
 
-        def render_dashboard_section(df_section, title, icon):
+
+        def render_dashboard_section(df_section, title, icon, group_by_col):
             st.markdown(f"#### {icon} {title}")
             if df_section.empty:
                 st.write("Chưa có dữ liệu.")
@@ -289,17 +299,16 @@ with tab_dashboard:
                 with st.container(border=True):
                     st.markdown(f"##### 🖨️ Máy: **{mach}**")
                     df_mach = df_section[df_section['machine'] == mach]
-                    test_groups = df_mach.groupby('test_name', sort=False)
 
-                    for t_name, group in test_groups:
+                    # Nhóm theo test_name (cho Sinh hóa) hoặc reagent_name (cho Huyết học/HbA1c)
+                    item_groups = df_mach.groupby(group_by_col, sort=False)
+
+                    for item_name, group in item_groups:
                         latest_eval = group.iloc[0]
                         latest_lot = latest_eval['lot_new']
                         latest_date = latest_eval['eval_date_obj'].strftime('%d/%m/%Y')
-                        r_name = latest_eval['reagent_name']
 
-                        display_name = f"🧪 {t_name} ({r_name})" if r_name else f"🧪 {t_name}"
-
-                        with st.expander(f"{display_name} | LOT mới nhất: **{latest_lot}** (Đổi: {latest_date})"):
+                        with st.expander(f"🧪 {item_name} | LOT mới nhất: **{latest_lot}** (Đổi: {latest_date})"):
                             hist_display = group[['eval_date_obj', 'lot_old', 'lot_new', 'status']].copy()
                             hist_display['eval_date_obj'] = hist_display['eval_date_obj'].dt.strftime('%d/%m/%Y')
                             hist_display['status'] = hist_display['status'].map(
@@ -307,10 +316,13 @@ with tab_dashboard:
                             hist_display.columns = ['Ngày thay', 'LOT cũ', 'LOT mới', 'Kết quả']
                             st.dataframe(hist_display.reset_index(drop=True), use_container_width=True, hide_index=True)
 
+
         with col_sh:
-            render_dashboard_section(df_sh, "Sinh hóa - Miễn dịch", "🧬")
+            # Sinh hóa - Miễn dịch: Nhóm theo tên Xét nghiệm (test_name)
+            render_dashboard_section(df_sh, "Sinh hóa - Miễn dịch", "🧬", group_by_col="test_name")
         with col_hh:
-            render_dashboard_section(df_hh, "Huyết học - HbA1c", "🩸")
+            # Huyết học - HbA1c: Nhóm trực tiếp theo từng loại Hóa chất (reagent_name) trên máy đó
+            render_dashboard_section(df_hh, "Huyết học - HbA1c", "🩸", group_by_col="reagent_name")
 
 # ==============================================================================
 # TAB 4: GIAI ĐOẠN 1 - SETUP THÔNG SỐ
