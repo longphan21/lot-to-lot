@@ -14,10 +14,209 @@ from database import (
 )
 
 st.set_page_config(page_title="CLSI EP26 - Lot-to-Lot", layout="wide", initial_sidebar_state="collapsed")
+
+
+def inject_custom_css():
+    st.markdown("""
+    <style>
+        /* Nhúng font Be Vietnam Pro cứng cáp, hiện đại & JetBrains Mono cho số liệu */
+        @import url('https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400&family=JetBrains+Mono:wght@600;700&display=swap');
+
+        /* Tổng thể nền sáng và chữ xanh tối da trời */
+        html, body, [class*="css"], .stApp {
+            background-color: #F7FAF8 !important;
+            color: #0A2540 !important;
+            font-family: 'Be Vietnam Pro', -apple-system, BlinkMacSystemFont, sans-serif !important;
+        }
+
+        /* Đề mục (Headers) in đậm, cứng cáp, màu xanh tối da trời */
+        h1, h2, h3, h4, h5, h6 {
+            color: #0A2540 !important;
+            font-family: 'Be Vietnam Pro', sans-serif !important;
+            font-weight: 800 !important;
+            letter-spacing: -0.3px;
+        }
+        h1 {
+            font-size: 2.0rem !important;
+            border-bottom: 3px solid #A5D6A7;
+            padding-bottom: 10px;
+            margin-bottom: 15px !important;
+        }
+
+        /* In đậm toàn bộ nhãn (Label) của các ô chọn và nhập liệu */
+        .stSelectbox label p, .stTextInput label p, .stDateInput label p, .stNumberInput label p, .stFileUploader label p {
+            color: #0A2540 !important;
+            font-weight: 700 !important;
+            font-size: 0.96rem !important;
+        }
+
+        /* Thanh chuyển Tab (5 Tabs chính) */
+        .stTabs [data-baseweb="tab-list"] {
+            gap: 8px;
+            background-color: #E6F4EA;
+            padding: 8px 10px;
+            border-radius: 12px;
+            border: 1px solid #C8E6C9;
+        }
+        .stTabs [data-baseweb="tab"] {
+            background-color: #FFFFFF;
+            border-radius: 8px;
+            padding: 10px 18px;
+            border: 1px solid #DCEDC8;
+            transition: all 0.2s ease;
+        }
+        .stTabs [data-baseweb="tab"] p {
+            color: #0A2540 !important;
+            font-weight: 700 !important;
+            font-size: 0.96rem !important;
+        }
+        .stTabs [aria-selected="true"] {
+            background-color: #2E7D32 !important;
+            border-color: #1B5E20 !important;
+            box-shadow: 0 3px 6px rgba(46, 125, 50, 0.22);
+        }
+        .stTabs [aria-selected="true"] p {
+            color: #FFFFFF !important;
+            font-weight: 800 !important;
+        }
+
+        /* Khung viền Container trắng sạch, viền xanh lá nhạt */
+        [data-testid="stVerticalBlockBorderWrapper"] {
+            background-color: #FFFFFF !important;
+            border: 1.5px solid #C8E6C9 !important;
+            border-radius: 12px !important;
+            box-shadow: 0 2px 8px rgba(10, 37, 64, 0.04);
+        }
+
+        /* Khung mở rộng (Expander) ở Lịch sử & Dashboard: Nền xanh lá nhạt, chữ in đậm cỡ lớn */
+        [data-testid="stExpander"] {
+            background-color: #FFFFFF !important;
+            border: 1.5px solid #A5D6A7 !important;
+            border-radius: 10px !important;
+            margin-bottom: 10px !important;
+            box-shadow: 0 2px 5px rgba(10, 37, 64, 0.04) !important;
+            overflow: hidden;
+        }
+        [data-testid="stExpander"] summary {
+            background-color: #EAF7ED !important;
+            padding: 12px 16px !important;
+            border-radius: 8px !important;
+            transition: background-color 0.15s ease;
+        }
+        [data-testid="stExpander"] summary:hover {
+            background-color: #D7F0DD !important;
+        }
+        [data-testid="stExpander"] summary p {
+            color: #0A2540 !important;
+            font-weight: 700 !important;
+            font-size: 1.04rem !important;
+            letter-spacing: 0.1px;
+        }
+
+        /* Các nút bấm (Buttons): Phối màu xanh lá cây sáng & chữ đậm */
+        .stButton > button[kind="primary"] {
+            background: linear-gradient(135deg, #388E3C 0%, #2E7D32 100%) !important;
+            color: #FFFFFF !important;
+            font-weight: 700 !important;
+            border: none !important;
+            border-radius: 8px !important;
+            padding: 0.55rem 1.2rem !important;
+            box-shadow: 0 3px 6px rgba(46, 125, 50, 0.25) !important;
+        }
+        .stButton > button[kind="primary"] p {
+            color: #FFFFFF !important;
+            font-weight: 700 !important;
+        }
+        .stButton > button[kind="primary"]:hover {
+            background: linear-gradient(135deg, #2E7D32 0%, #1B5E20 100%) !important;
+            transform: translateY(-1px);
+        }
+
+        .stButton > button[kind="secondary"], .stDownloadButton > button {
+            background-color: #E8F5E9 !important;
+            color: #0A2540 !important;
+            font-weight: 700 !important;
+            border: 1.5px solid #81C784 !important;
+            border-radius: 8px !important;
+        }
+        .stButton > button[kind="secondary"] p, .stDownloadButton > button p {
+            color: #0A2540 !important;
+            font-weight: 700 !important;
+        }
+        .stButton > button[kind="secondary"]:hover, .stDownloadButton > button:hover {
+            background-color: #C8E6C9 !important;
+            border-color: #4CAF50 !important;
+        }
+
+        /* Các ô Metric hiển thị kết quả đánh giá */
+        [data-testid="stMetric"] {
+            background-color: #F1F8F3 !important;
+            border: 1px solid #C8E6C9 !important;
+            border-radius: 10px !important;
+            padding: 10px 14px !important;
+        }
+        [data-testid="stMetricLabel"] p {
+            color: #1B4F72 !important;
+            font-weight: 700 !important;
+        }
+        [data-testid="stMetricValue"] {
+            color: #0A2540 !important;
+            font-family: 'JetBrains Mono', monospace !important;
+            font-weight: 800 !important;
+        }
+
+        /* Huy hiệu Tháng/Năm và Tóm tắt ngày tháng trong Tab Lịch sử */
+        .month-header-banner {
+            background: linear-gradient(90deg, #DDF2E1 0%, #F1F8F3 100%);
+            color: #0A2540;
+            padding: 10px 18px;
+            border-left: 6px solid #2E7D32;
+            border-radius: 8px;
+            font-weight: 800;
+            font-size: 1.15rem;
+            margin-top: 20px;
+            margin-bottom: 12px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+        }
+        .history-meta-bar {
+            background-color: #F4FBF6;
+            border: 1px solid #B9E2C2;
+            border-radius: 8px;
+            padding: 10px 16px;
+            margin-bottom: 12px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 18px;
+            align-items: center;
+            color: #0A2540;
+            font-size: 0.96rem;
+        }
+        .date-pill {
+            background-color: #2E7D32;
+            color: #FFFFFF;
+            padding: 4px 12px;
+            border-radius: 6px;
+            font-family: 'JetBrains Mono', monospace;
+            font-weight: 700;
+            font-size: 0.95rem;
+        }
+        .lot-pill {
+            background-color: #E3F2FD;
+            color: #0A2540;
+            border: 1px solid #90CAF9;
+            padding: 3px 10px;
+            border-radius: 6px;
+            font-family: 'JetBrains Mono', monospace;
+            font-weight: 700;
+        }
+    </style>
+    """, unsafe_allow_html=True)
+
+
+inject_custom_css()
 init_db()
 
-st.title("🔬 Hệ thống Đánh giá Lot-to-Lot (CLSI EP26-Ed2)")
-st.markdown("---")
+st.title("🔬 HỆ THỐNG ĐÁNH GIÁ LOT-TO-LOT (CLSI EP26-Ed2)")
 
 DEFAULT_SAMPLES = {
     ("CHOLESTEROL", "Alinity C"): pd.DataFrame([
@@ -75,7 +274,7 @@ with tab_stage2:
         st.warning("⚠️ Chưa có cấu hình xét nghiệm nào. Vui lòng sang **Tab 4** để thiết lập thông số ban đầu!")
     else:
         with st.container(border=True):
-            st.markdown("#### 🧾 Thông tin Đợt Đánh giá")
+            st.markdown("#### 🧾 THÔNG TIN ĐỢT ĐÁNH GIÁ")
 
             c1, c2, c3 = st.columns([1.5, 1.5, 1])
             with c1:
@@ -105,7 +304,7 @@ with tab_stage2:
         test_levels_df = mach_df.sort_values("target_conc").reset_index(drop=True)
         unit_s2 = str(test_levels_df["unit"].iloc[0]) if not test_levels_df.empty else "mmol/L"
 
-        st.markdown("### 🧪 Nhập kết quả mẫu (Công thức: Độ chệch d = |LOT mới - LOT cũ|)")
+        st.markdown("### 🧪 NHẬP KẾT QUẢ MẪU (Công thức: Độ chệch d = |LOT mới - LOT cũ|)")
         flat_records_to_save = []
         summary_table_rows = []
 
@@ -120,8 +319,8 @@ with tab_stage2:
                 head_col1, head_col2 = st.columns([2.2, 1.8])
                 with head_col1:
                     st.markdown(f"#### 📍 Mức nồng độ: `{target_val:.3f} {unit_s2}`")
-                    st.caption(
-                        f"Yêu cầu: **{int(lv_row['n_samples'])} mẫu** | Giới hạn từ chối (RL) = **`{rl_pct_db:.3f}%`**")
+                    st.markdown(
+                        f"**Yêu cầu:** `{int(lv_row['n_samples'])} mẫu` &nbsp;|&nbsp; **Giới hạn từ chối (RL):** `{rl_pct_db:.3f}%`")
 
                 default_samples_lv = pd.DataFrame(
                     [{"SID (Mã mẫu)": "", "Kết quả LOT cũ": 0.00, "Kết quả LOT mới": 0.00} for _ in range(n_req)])
@@ -178,23 +377,24 @@ with tab_stage2:
                 st.rerun()
 
 # ==============================================================================
-# TAB 2: LỊCH SỬ ĐÁNH GIÁ (XUẤT WORD & XÓA)
+# TAB 2: LỊCH SỬ ĐÁNH GIÁ (ĐÃ LÀM ĐẬM NGÀY THÁNG & GOM THEO THÁNG/NĂM)
 # ==============================================================================
 with tab_history:
-    st.markdown("### 🕒 Lịch sử Đánh giá Mẫu thực tế")
+    st.markdown("### 🕒 LỊCH SỬ ĐÁNH GIÁ MẪU THỰC TẾ")
     hist_df = hist_df_master.copy()
 
     if hist_df.empty:
         st.info("Chưa có đợt đánh giá nào được lưu.")
     else:
         hist_df['eval_date'] = pd.to_datetime(hist_df['eval_date'])
-        hist_df['Year'] = hist_df['eval_date'].dt.year
-        years = sorted(hist_df['Year'].unique(), reverse=True)
+        hist_df = hist_df.sort_values(by=['eval_date', 'created_at'], ascending=[False, False])
+        hist_df['YearMonth'] = hist_df['eval_date'].dt.strftime('%m / %Y')
+        year_months = hist_df['YearMonth'].unique().tolist()
 
-        for y in years:
-            st.markdown(f"## 📅 Năm {y}")
-            year_df = hist_df[hist_df['Year'] == y]
-            grouped_hist = year_df.groupby('created_at', sort=False)
+        for ym in year_months:
+            st.markdown(f'<div class="month-header-banner">🗓️ THÁNG {ym}</div>', unsafe_allow_html=True)
+            ym_df = hist_df[hist_df['YearMonth'] == ym]
+            grouped_hist = ym_df.groupby('created_at', sort=False)
 
             for created_at, group in grouped_hist:
                 first_row = group.iloc[0]
@@ -211,15 +411,32 @@ with tab_history:
                 display_date_str = first_row['eval_date'].strftime('%d/%m/%Y')
                 unit = first_row['unit']
 
-                # HIỂN THỊ THÊM TÊN HÓA CHẤT Ở TIÊU ĐỀ LỊCH SỬ (NẾU CÓ)
-                reagent_str = f" | Hóa chất: {reagent}" if reagent else ""
-                expander_label = f"📌 {display_date_str} | {t_name} ({mach}){reagent_str} | LOT: {l_old} ➔ {l_new}"
+                overall_pass = all(str(r['status']).upper() == 'PASS' for _, r in group.iterrows())
+                status_icon = "🟢 ĐẠT" if overall_pass else "🔴 TRƯỢT"
+
+                reagent_str = f"  •  🧪 Hóa chất: {reagent}" if reagent else ""
+                expander_label = f"📅 [{display_date_str}]  —  {t_name} ({mach}){reagent_str}  •  LOT: {l_old} ➔ {l_new}  [{status_icon}]"
 
                 with st.expander(expander_label, expanded=False):
+                    reagent_meta = f'<div><strong>Hóa chất:</strong> {reagent}</div>' if reagent else ''
+                    st.markdown(f"""
+                    <div class="history-meta-bar">
+                        <div><strong>Ngày thực hiện:</strong> <span class="date-pill">{display_date_str}</span></div>
+                        <div><strong>Xét nghiệm:</strong> {t_name} ({unit})</div>
+                        <div><strong>Thiết bị:</strong> {mach} {f'({mach_id})' if mach_id else ''}</div>
+                        {reagent_meta}
+                        <div><strong>Chuyển đổi LOT:</strong> <span class="lot-pill">{l_old} ➔ {l_new}</span></div>
+                    </div>
+                    """, unsafe_allow_html=True)
+
                     display_cols = ['level_name', 'target_conc', 'sid', 'val_old', 'val_new', 'diff_d', 'mean_d',
                                     'mean_d_pct', 'rl_pct', 'status']
-                    st.dataframe(group[display_cols].style.format(precision=3), use_container_width=True,
-                                 hide_index=True)
+                    df_show = group[display_cols].copy()
+                    df_show.columns = [
+                        'Mức (Level)', 'Nồng độ đích', 'Mã mẫu (SID)', 'KQ LOT cũ',
+                        'KQ LOT mới', 'Độ chệch |d|', 'TB |d|', 'TB |d| (%)', 'Giới hạn RL (%)', 'Kết quả'
+                    ]
+                    st.dataframe(df_show.style.format(precision=3), use_container_width=True, hide_index=True)
 
                     st.write("")
                     col_word, col_pdf, col_del = st.columns([1, 1, 1])
@@ -230,7 +447,7 @@ with tab_history:
                             e_date_str, t_name, unit, mach, mach_id, reagent, l_old, l_new, setup_df, group
                         )
                         st.download_button(
-                            label="📄 XUẤT WORD",
+                            label="📄 XUẤT FILE WORD",
                             data=docx_file,
                             file_name=f"LotToLot_{t_name}_{l_old}_{l_new}.docx",
                             mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
@@ -260,7 +477,7 @@ with tab_history:
                             )
 
                     with col_del:
-                        if st.button("❌ Xóa đợt này", key=f"del_hist_{created_at}", use_container_width=True):
+                        if st.button("🗑️ Xóa đợt này", key=f"del_hist_{created_at}", use_container_width=True):
                             delete_stage2_evaluation(created_at)
                             st.rerun()
 
@@ -268,7 +485,7 @@ with tab_history:
 # TAB 3: TỔNG QUAN LOT (DASHBOARD)
 # ==============================================================================
 with tab_dashboard:
-    st.markdown("### 📊 Bảng điều khiển Hiện trạng Hóa chất (LOT)")
+    st.markdown("### 📊 BẢNG ĐIỀU KHIỂN HIỆN TRẠNG HÓA CHẤT (LOT)")
     df_hist_dash = hist_df_master.copy()
 
     if df_hist_dash.empty:
@@ -278,7 +495,6 @@ with tab_dashboard:
         df_hist_dash.loc[df_hist_dash['reagent_name'].str.lower() == 'nan', 'reagent_name'] = ''
         df_hist_dash['eval_date_obj'] = pd.to_datetime(df_hist_dash['eval_date'])
 
-        # Lọc trùng theo đợt đánh giá và sắp xếp mới nhất lên đầu
         df_unique_evals = df_hist_dash.drop_duplicates(subset=['created_at']).copy()
         df_unique_evals = df_unique_evals.sort_values(by=['eval_date_obj', 'created_at'], ascending=[False, False])
 
@@ -286,7 +502,6 @@ with tab_dashboard:
         df_hh = df_unique_evals[df_unique_evals['reagent_name'] != '']
 
         col_sh, col_hh = st.columns(2)
-
 
         def render_dashboard_section(df_section, title, icon, group_by_col):
             st.markdown(f"#### {icon} {title}")
@@ -297,10 +512,8 @@ with tab_dashboard:
             machines = sorted(df_section['machine'].unique())
             for mach in machines:
                 with st.container(border=True):
-                    st.markdown(f"##### 🖨️ Máy: **{mach}**")
+                    st.markdown(f"##### 🖨️ MÁY: **{mach}**")
                     df_mach = df_section[df_section['machine'] == mach]
-
-                    # Nhóm theo test_name (cho Sinh hóa) hoặc reagent_name (cho Huyết học/HbA1c)
                     item_groups = df_mach.groupby(group_by_col, sort=False)
 
                     for item_name, group in item_groups:
@@ -308,21 +521,18 @@ with tab_dashboard:
                         latest_lot = latest_eval['lot_new']
                         latest_date = latest_eval['eval_date_obj'].strftime('%d/%m/%Y')
 
-                        with st.expander(f"🧪 {item_name} | LOT mới nhất: **{latest_lot}** (Đổi: {latest_date})"):
+                        with st.expander(f"🧪 {item_name}  |  LOT đang dùng: {latest_lot}  (Cập nhật: 📅 {latest_date})"):
                             hist_display = group[['eval_date_obj', 'lot_old', 'lot_new', 'status']].copy()
                             hist_display['eval_date_obj'] = hist_display['eval_date_obj'].dt.strftime('%d/%m/%Y')
                             hist_display['status'] = hist_display['status'].map(
                                 {'PASS': '✅ Đạt', 'FAIL': '❌ Trượt'}).fillna(hist_display['status'])
-                            hist_display.columns = ['Ngày thay', 'LOT cũ', 'LOT mới', 'Kết quả']
+                            hist_display.columns = ['📅 Ngày thay LOT', 'LOT cũ', 'LOT mới', 'Kết quả']
                             st.dataframe(hist_display.reset_index(drop=True), use_container_width=True, hide_index=True)
 
-
         with col_sh:
-            # Sinh hóa - Miễn dịch: Nhóm theo tên Xét nghiệm (test_name)
-            render_dashboard_section(df_sh, "Sinh hóa - Miễn dịch", "🧬", group_by_col="test_name")
+            render_dashboard_section(df_sh, "SINH HÓA - MIỄN DỊCH", "🧬", group_by_col="test_name")
         with col_hh:
-            # Huyết học - HbA1c: Nhóm trực tiếp theo từng loại Hóa chất (reagent_name) trên máy đó
-            render_dashboard_section(df_hh, "Huyết học - HbA1c", "🩸", group_by_col="reagent_name")
+            render_dashboard_section(df_hh, "HUYẾT HỌC - HBA1C", "🩸", group_by_col="reagent_name")
 
 # ==============================================================================
 # TAB 4: GIAI ĐOẠN 1 - SETUP THÔNG SỐ
@@ -331,7 +541,7 @@ with tab_stage1:
     all_setups_for_dropdown = all_setups
 
     with st.container(border=True):
-        st.markdown("#### 📌 Thông tin Xét nghiệm & Thiết bị")
+        st.markdown("#### 📌 THÔNG TIN XÉT NGHIỆM & THIẾT BỊ")
         col1, col2, col3, col4, col5 = st.columns([1.5, 1.5, 1.2, 1, 1.5])
 
         with col1:
@@ -382,7 +592,7 @@ with tab_stage1:
 
     if not saved_df.empty:
         st.info(
-            "🔄 Đã tự động lấy dữ liệu cũ từ Database. Bạn hãy nhập thêm [Mã thiết bị] rồi cuộn xuống bấm Lưu để cập nhật nhé.")
+            "🔄 Đã tự động lấy dữ liệu cũ từ Database. Bạn có thể chỉnh sửa và cuộn xuống bấm Lưu để cập nhật.")
         init_input_df = pd.DataFrame({
             "Chọn chạy (Vàng)": saved_df["is_selected"].astype(bool),
             "Target concentration": saved_df["target_conc"].astype(float),
@@ -398,7 +608,7 @@ with tab_stage1:
              "Sr = CVr %": 0.3},
         ])
 
-    st.markdown("### 📝 Nhập thông số và Chọn mức nồng độ")
+    st.markdown("### 📝 NHẬP THÔNG SỐ VÀ CHỌN MỨC NỒNG ĐỘ")
     edited_input = st.data_editor(
         init_input_df, num_rows="dynamic", use_container_width=True,
         column_config={
@@ -428,7 +638,7 @@ with tab_stage1:
             bang_tra = f"Bảng A{num_selected_levels}"
 
             with st.container(border=True):
-                st.markdown(f"📍 **Mức nồng độ: {target_c:.3f} {unit_name}**")
+                st.markdown(f"#### 📍 Mức nồng độ: `{target_c:.3f} {unit_name}`")
                 if len(candidates) > 1:
                     option_labels = [
                         f"🌟 Option {i + 1} (Tra {bang_tra}): {c['n_samples']} mẫu | Power = {c['power_achieve']:.3f} | CD/Swrl = {c['cd_swrl']} | Sr/Swrl = {c['sr_swrl']} | K = {c['k_factor']} | RL = {c['rejection_limit']:.2f}%"
@@ -467,7 +677,7 @@ with tab_stage1:
 # TAB 5: DANH MỤC CẤU HÌNH ĐÃ LƯU
 # ==============================================================================
 with tab_db_setup:
-    st.markdown("### 📂 Cấu hình Stage 1 hiện có")
+    st.markdown("### 📂 CẤU HÌNH STAGE 1 HIỆN CÓ")
 
     with st.expander("📥 KHÔI PHỤC / IMPORT DỮ LIỆU TỪ FILE (.CSV, .XLSX)", expanded=False):
         uploaded_file = st.file_uploader("Kéo thả file dữ liệu đã xuất từ hệ thống vào đây", type=["csv", "xlsx"])
@@ -504,6 +714,6 @@ with tab_db_setup:
         with c_d3:
             st.write("")
             st.write("")
-            if st.button("❌ Xóa cấu hình", use_container_width=True):
+            if st.button("🗑️ Xóa cấu hình", use_container_width=True):
                 delete_specific_setup(del_test, del_mach)
                 st.rerun()
