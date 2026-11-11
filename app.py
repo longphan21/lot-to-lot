@@ -230,11 +230,11 @@ all_setups = load_all_setups()
 hist_df_master = load_stage2_history()
 
 tab_stage2, tab_history, tab_dashboard, tab_stage1, tab_db_setup = st.tabs([
-    "🧪 1. Đánh giá Mẫu thực tế (Stage 2)",
-    "🕒 2. Lịch sử Đánh giá",
-    "📊 3. Tổng quan LOT (Dashboard)",
-    "⚙️ 4. Cấu hình Thông số (Stage 1)",
-    "📂 5. Danh mục XN đã lưu"
+    "1. Đánh giá Mẫu thực tế (Stage 2)",
+    "2. Lịch sử Đánh giá",
+    "3. Tổng quan LOT (Dashboard)",
+    "4. Cấu hình Thông số (Stage 1)",
+    "5. Danh mục XN đã lưu"
 ])
 
 
