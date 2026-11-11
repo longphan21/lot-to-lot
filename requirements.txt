@@ -3,7 +3,4 @@ pandas
 scipy
 python-docx
 openpyxl
-psycopg2-binary==2.9.9
-pandas
-streamlit
-python-docx
+psycopg2-binary
