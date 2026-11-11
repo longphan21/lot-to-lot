@@ -216,7 +216,7 @@ def inject_custom_css():
 inject_custom_css()
 init_db()
 
-st.title("🔬 HỆ THỐNG ĐÁNH GIÁ LOT-TO-LOT (CLSI EP26-Ed2)")
+st.title("LOT-TO-LOT CLSI EP26-Ed2")
 
 DEFAULT_SAMPLES = {
     ("CHOLESTEROL", "Alinity C"): pd.DataFrame([
