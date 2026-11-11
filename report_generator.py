@@ -9,6 +9,14 @@ from docx.enum.table import WD_CELL_VERTICAL_ALIGNMENT
 def generate_report_docx(eval_date_str, test_name, unit, machine, machine_id, lot_old, lot_new, stage1_df, stage2_df):
     template_path = os.path.join(os.path.dirname(__file__), 'template.docx')
     doc = Document(template_path) if os.path.exists(template_path) else Document()
+    # Ép toàn bộ các ô trong tất cả các bảng của file Word canh giữa dọc và ngang tuyệt đối
+    for table in doc.tables:
+        for row in table.rows:
+            for cell in row.cells:
+                cell.vertical_alignment = WD_CELL_VERTICAL_ALIGNMENT.CENTER
+                for p in cell.paragraphs:
+                    p.paragraph_format.space_before = Pt(0)
+                    p.paragraph_format.space_after = Pt(0)
 
     # 1. Chuyển đổi định dạng ngày thành DD/MM/YYYY
     d_parts = eval_date_str.split('-')
