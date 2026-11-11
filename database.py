@@ -7,16 +7,20 @@ from datetime import datetime, timedelta
 # ==========================================
 # 1. HÀM KẾT NỐI GOOGLE SHEETS
 # ==========================================
-def get_gsheet_client():
-    # Lấy thông tin xác thực từ Streamlit Secrets khi chạy trên Cloud
-    # Hoặc file local khi chạy trên máy tính
+ddef get_gsheet_client():
     if "gcp_service_account" in st.secrets:
+        # Chuyển secrets thành dictionary để có thể chỉnh sửa
         creds_dict = dict(st.secrets["gcp_service_account"])
+
+        # SỬA LỖI VALUE_ERROR Ở ĐÂY: Ép các ký tự '\n' thành xuống dòng chuẩn
+        creds_dict["private_key"] = creds_dict["private_key"].replace("\\n", "\n")
+
         client = gspread.service_account_from_dict(creds_dict)
     else:
+        # Chạy local trên PyCharm
         client = gspread.service_account(filename="credentials.json")
 
-    # Mở Google Sheet (Bạn phải tạo 1 file tên này trên Drive)
+    # Tên file Google Sheet
     spreadsheet = client.open("Lot_To_Lot_DB")
     return spreadsheet
 
