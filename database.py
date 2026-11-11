@@ -7,7 +7,7 @@ from datetime import datetime, timedelta
 # ==========================================
 # 1. HÀM KẾT NỐI GOOGLE SHEETS
 # ==========================================
-ddef get_gsheet_client():
+def get_gsheet_client():
     if "gcp_service_account" in st.secrets:
         # Chuyển secrets thành dictionary để có thể chỉnh sửa
         creds_dict = dict(st.secrets["gcp_service_account"])
