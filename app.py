@@ -10,43 +10,231 @@ from report_generator import generate_report_docx
 from database import (
     init_db, save_test_setup, load_all_setups, load_specific_setup,
     delete_specific_setup, save_stage2_evaluation, load_stage2_history,
-    delete_stage2_evaluation, import_stage1_from_dataframe, load_trash_history, restore_stage2_evaluation, permanently_delete_stage2_evaluation
+    delete_stage2_evaluation, import_stage1_from_dataframe,
+    load_trash_history, restore_stage2_evaluation, permanently_delete_stage2_evaluation
 )
 
-st.set_page_config(page_title="CLSI EP26 - Lot-to-Lot", layout="wide", initial_sidebar_state="collapsed")
+st.set_page_config(
+    page_title="CLSI EP26 - Lot-to-Lot",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
+
+DEFAULT_SAMPLES = {
+    ("CHOLESTEROL", "Alinity C"): pd.DataFrame([
+        {
+            "Chọn chạy (Vàng)": True,
+            "Target concentration": 6.37,
+            "TEa%": 12.9,
+            "Swrl = CVwrl %": 0.5,
+            "Sr = CVr %": 0.3
+        },
+    ])
+}
 
 
 def inject_custom_css():
     st.markdown("""
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400&family=JetBrains+Mono:wght@600;700&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 
+        /* 1. TỔNG THỂ NỀN & FONT CHỮ */
         html, body, [class*="css"], .stApp {
-            background-color: #F7FAF8 !important;
-            color: #0A2540 !important;
-            font-family: 'Be Vietnam Pro', sans-serif !important;
+            background-color: #F1F5F9 !important;
+            color: #0F172A !important;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif !important;
         }
 
+        .block-container {
+            padding-top: 1.5rem !important;
+            padding-bottom: 2.5rem !important;
+            max-width: 1440px !important;
+        }
+
+        /* Định dạng số liệu thẳng hàng dọc (tabular-nums) */
+        .tabular-nums, [data-testid="stMetricValue"], [data-testid="stDataFrame"], table td {
+            font-variant-numeric: tabular-nums !important;
+        }
+
+        /* 2. PHÂN CẤP TIÊU ĐỀ (Bỏ in hoa toàn bộ, độ đậm vừa phải) */
         h1, h2, h3, h4, h5, h6 {
-            color: #0A2540 !important;
-            font-family: 'Be Vietnam Pro', sans-serif !important;
-            font-weight: 800 !important;
-            letter-spacing: -0.3px;
+            color: #0F172A !important;
+            font-family: 'Inter', sans-serif !important;
+            letter-spacing: -0.01em;
+            margin-top: 0 !important;
         }
-        h1 {
-            font-size: 2.0rem !important;
-            border-bottom: 3px solid #A5D6A7;
-            padding-bottom: 10px;
-            margin-bottom: 15px !important;
+        h3 {
+            font-size: 1.125rem !important;
+            font-weight: 600 !important;
+            color: #0F172A !important;
+            margin-bottom: 0.75rem !important;
+        }
+        h4, h5 {
+            font-size: 1.0rem !important;
+            font-weight: 600 !important;
+            color: #0F172A !important;
+            margin-bottom: 0.5rem !important;
         }
 
-        .stSelectbox label p, .stTextInput label p, .stDateInput label p, .stNumberInput label p, .stFileUploader label p {
-            color: #0A2540 !important;
-            font-weight: 700 !important;
-            font-size: 0.96rem !important;
+        /* 3. SIDEBAR MENU DỌC (Nền xanh Navy đậm #0F172A) */
+        [data-testid="stSidebar"] {
+            background-color: #0F172A !important;
+            border-right: 1px solid #1E293B !important;
+        }
+        [data-testid="stSidebar"] > div:first-child {
+            background-color: #0F172A !important;
+            padding-top: 1.25rem !important;
+        }
+        .sidebar-brand {
+            padding: 0 0.5rem 1.25rem 0.5rem;
+            border-bottom: 1px solid #1E293B;
+            margin-bottom: 1rem;
+        }
+        .sidebar-brand-title {
+            color: #FFFFFF;
+            font-size: 1.15rem;
+            font-weight: 700;
+            letter-spacing: -0.01em;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .sidebar-brand-sub {
+            color: #94A3B8;
+            font-size: 0.8rem;
+            font-weight: 400;
+            margin-top: 4px;
+        }
+        .sidebar-section-label {
+            color: #64748B;
+            font-size: 0.72rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            padding: 0 0.5rem;
+            margin-bottom: 0.5rem;
         }
 
-        /* ỨC CHẾ BÀN PHÍM ẢO TRÊN ĐIỆN THOẠI KHI BẤM VÀO SELECTBOX */
+        /* Biến st.radio trong Sidebar thành thanh Menu dọc chuyên nghiệp */
+        [data-testid="stSidebar"] .stRadio > label {
+            display: none !important;
+        }
+        [data-testid="stSidebar"] [role="radiogroup"] {
+            gap: 6px !important;
+        }
+        [data-testid="stSidebar"] [role="radiogroup"] label[data-baseweb="radio"] {
+            background-color: transparent !important;
+            padding: 10px 12px !important;
+            border-radius: 8px !important;
+            border-left: 3px solid transparent !important;
+            transition: background-color 0.15s ease, color 0.15s ease !important;
+            cursor: pointer !important;
+            margin-bottom: 0 !important;
+            width: 100% !important;
+        }
+        /* Ẩn nút tròn mặc định của radio trong sidebar */
+        [data-testid="stSidebar"] [role="radiogroup"] label[data-baseweb="radio"] > div:first-child {
+            display: none !important;
+        }
+        [data-testid="stSidebar"] [role="radiogroup"] label[data-baseweb="radio"] p {
+            color: #94A3B8 !important;
+            font-size: 0.9rem !important;
+            font-weight: 500 !important;
+            margin: 0 !important;
+        }
+        [data-testid="stSidebar"] [role="radiogroup"] label[data-baseweb="radio"]:hover {
+            background-color: #1E293B !important;
+        }
+        [data-testid="stSidebar"] [role="radiogroup"] label[data-baseweb="radio"]:hover p {
+            color: #F8FAFC !important;
+        }
+        /* Mục đang chọn trên Sidebar */
+        [data-testid="stSidebar"] [role="radiogroup"] label[data-baseweb="radio"]:has(input:checked) {
+            background-color: #1E293B !important;
+            border-left: 3px solid #38BDF8 !important;
+        }
+        [data-testid="stSidebar"] [role="radiogroup"] label[data-baseweb="radio"]:has(input:checked) p {
+            color: #FFFFFF !important;
+            font-weight: 600 !important;
+        }
+
+        /* 4. BANNER ĐẦU TRANG */
+        .page-banner {
+            background-color: #E0F2FE;
+            border: 1px solid #BAE6FD;
+            border-left: 4px solid #0284C7;
+            border-radius: 10px;
+            padding: 14px 20px;
+            margin-bottom: 20px;
+        }
+        .page-banner-title {
+            color: #0F172A;
+            font-size: 1.25rem;
+            font-weight: 700;
+            margin: 0 0 4px 0;
+        }
+        .page-banner-desc {
+            color: #475569;
+            font-size: 0.85rem;
+            font-weight: 400;
+            margin: 0;
+        }
+
+        /* 5. KHỐI CARD TRẮNG & EXPANDER */
+        [data-testid="stVerticalBlockBorderWrapper"] {
+            background-color: #FFFFFF !important;
+            border: 1px solid #E2E8F0 !important;
+            border-radius: 10px !important;
+            box-shadow: 0 1px 2px rgba(15, 23, 42, 0.03) !important;
+            padding: 1rem !important;
+            margin-bottom: 1rem !important;
+        }
+
+        [data-testid="stExpander"] {
+            background-color: #FFFFFF !important;
+            border: 1px solid #E2E8F0 !important;
+            border-radius: 8px !important;
+            margin-bottom: 10px !important;
+            box-shadow: 0 1px 2px rgba(15, 23, 42, 0.02) !important;
+            overflow: hidden;
+        }
+        [data-testid="stExpander"] summary {
+            background-color: #F8FAFC !important;
+            padding: 10px 14px !important;
+            border-radius: 8px !important;
+            transition: background-color 0.15s ease;
+        }
+        [data-testid="stExpander"] summary:hover {
+            background-color: #F1F5F9 !important;
+        }
+        [data-testid="stExpander"] summary p {
+            color: #1E293B !important;
+            font-weight: 600 !important;
+            font-size: 0.9rem !important;
+        }
+
+        /* 6. Ô NHẬP LIỆU & SELECTBOX */
+        .stSelectbox label p, .stTextInput label p, .stDateInput label p,
+        .stNumberInput label p, .stFileUploader label p {
+            color: #1E293B !important;
+            font-weight: 600 !important;
+            font-size: 0.875rem !important;
+        }
+        div[data-baseweb="select"] > div,
+        div[data-baseweb="input"] > div,
+        div[data-baseweb="base-input"] {
+            background-color: #FFFFFF !important;
+            border-color: #E2E8F0 !important;
+            border-radius: 8px !important;
+            color: #0F172A !important;
+        }
+        div[data-baseweb="select"] > div:focus-within,
+        div[data-baseweb="input"] > div:focus-within {
+            border-color: #0284C7 !important;
+            box-shadow: 0 0 0 1px #0284C7 !important;
+        }
+
+        /* Ức chế bàn phím ảo trên điện thoại khi bấm vào Selectbox */
         @media (max-width: 768px) {
             div[data-baseweb="select"] input {
                 caret-color: transparent !important;
@@ -54,142 +242,262 @@ def inject_custom_css():
             }
         }
 
-        .stTabs [data-baseweb="tab-list"] {
-            gap: 8px;
-            background-color: #E6F4EA;
-            padding: 8px 10px;
-            border-radius: 12px;
-            border: 1px solid #C8E6C9;
-        }
-        .stTabs [data-baseweb="tab"] {
-            background-color: #FFFFFF;
-            border-radius: 8px;
-            padding: 10px 18px;
-            border: 1px solid #DCEDC8;
-            transition: all 0.2s ease;
-        }
-        .stTabs [data-baseweb="tab"] p {
-            color: #0A2540 !important;
-            font-weight: 700 !important;
-            font-size: 0.96rem !important;
-        }
-        .stTabs [aria-selected="true"] {
-            background-color: #2E7D32 !important;
-            border-color: #1B5E20 !important;
-            box-shadow: 0 3px 6px rgba(46, 125, 50, 0.22);
-        }
-        .stTabs [aria-selected="true"] p {
-            color: #FFFFFF !important;
-            font-weight: 800 !important;
-        }
-
-        [data-testid="stVerticalBlockBorderWrapper"] {
-            background-color: #FFFFFF !important;
-            border: 1.5px solid #C8E6C9 !important;
-            border-radius: 12px !important;
-            box-shadow: 0 2px 8px rgba(10, 37, 64, 0.04);
-        }
-
-        [data-testid="stExpander"] {
-            background-color: #FFFFFF !important;
-            border: 1.5px solid #A5D6A7 !important;
-            border-radius: 10px !important;
-            margin-bottom: 10px !important;
-            box-shadow: 0 2px 5px rgba(10, 37, 64, 0.04) !important;
-            overflow: hidden;
-        }
-        [data-testid="stExpander"] summary {
-            background-color: #EAF7ED !important;
-            padding: 12px 16px !important;
-            border-radius: 8px !important;
-        }
-        [data-testid="stExpander"] summary p {
-            color: #0A2540 !important;
-            font-weight: 700 !important;
-            font-size: 1.04rem !important;
-        }
-
+        /* 7. NÚT BẤM (BUTTONS) */
         .stButton > button[kind="primary"] {
-            background: linear-gradient(135deg, #388E3C 0%, #2E7D32 100%) !important;
+            background-color: #0284C7 !important;
             color: #FFFFFF !important;
-            font-weight: 700 !important;
-            border: none !important;
+            font-weight: 600 !important;
+            font-size: 0.875rem !important;
+            border: 1px solid #0284C7 !important;
             border-radius: 8px !important;
-            padding: 0.55rem 1.2rem !important;
-            box-shadow: 0 3px 6px rgba(46, 125, 50, 0.25) !important;
+            padding: 0.5rem 1.1rem !important;
+            box-shadow: 0 1px 2px rgba(2, 132, 199, 0.15) !important;
+            transition: background-color 0.15s ease !important;
         }
-        .stButton > button[kind="primary"] p { color: #FFFFFF !important; font-weight: 700 !important; }
+        .stButton > button[kind="primary"] p {
+            color: #FFFFFF !important;
+            font-weight: 600 !important;
+        }
+        .stButton > button[kind="primary"]:hover {
+            background-color: #0369A1 !important;
+            border-color: #0369A1 !important;
+        }
 
         .stButton > button[kind="secondary"], .stDownloadButton > button {
-            background-color: #E8F5E9 !important;
-            color: #0A2540 !important;
-            font-weight: 700 !important;
-            border: 1.5px solid #81C784 !important;
+            background-color: #FFFFFF !important;
+            color: #1E293B !important;
+            font-weight: 600 !important;
+            font-size: 0.875rem !important;
+            border: 1px solid #CBD5E1 !important;
             border-radius: 8px !important;
+            padding: 0.5rem 1rem !important;
+            transition: all 0.15s ease !important;
         }
         .stButton > button[kind="secondary"] p, .stDownloadButton > button p {
-            color: #0A2540 !important;
-            font-weight: 700 !important;
+            color: #1E293B !important;
+            font-weight: 600 !important;
+        }
+        .stButton > button[kind="secondary"]:hover, .stDownloadButton > button:hover {
+            background-color: #F8FAFC !important;
+            border-color: #0284C7 !important;
+            color: #0284C7 !important;
+        }
+        .stButton > button[kind="secondary"]:hover p, .stDownloadButton > button:hover p {
+            color: #0284C7 !important;
         }
 
+        /* 8. METRICS HIỂN THỊ SỐ LIỆU */
         [data-testid="stMetric"] {
-            background-color: #F1F8F3 !important;
-            border: 1px solid #C8E6C9 !important;
-            border-radius: 10px !important;
+            background-color: #F8FAFC !important;
+            border: 1px solid #E2E8F0 !important;
+            border-radius: 8px !important;
             padding: 10px 14px !important;
         }
-        [data-testid="stMetricLabel"] p { color: #1B4F72 !important; font-weight: 700 !important; }
+        [data-testid="stMetricLabel"] p {
+            color: #475569 !important;
+            font-weight: 500 !important;
+            font-size: 0.8rem !important;
+        }
         [data-testid="stMetricValue"] {
-            color: #0A2540 !important;
-            font-family: 'JetBrains Mono', monospace !important;
-            font-weight: 800 !important;
+            color: #0F172A !important;
+            font-weight: 700 !important;
+            font-size: 1.25rem !important;
+            font-variant-numeric: tabular-nums !important;
         }
 
-        .month-header-banner {
-            background: linear-gradient(90deg, #DDF2E1 0%, #F1F8F3 100%);
-            color: #0A2540;
-            padding: 10px 18px;
-            border-left: 6px solid #2E7D32;
+        /* 9. NHÃN TRẠNG THÁI (BADGES) & KHỐI KẾT QUẢ */
+        .status-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 2px 10px;
+            border-radius: 999px;
+            font-size: 0.78rem;
+            font-weight: 600;
+            line-height: 1.4;
+            white-space: nowrap;
+        }
+        .badge-pass {
+            background-color: #DCFCE7;
+            color: #15803D;
+            border: 1px solid #86EFAC;
+        }
+        .badge-fail {
+            background-color: #FEE2E2;
+            color: #B91C1C;
+            border: 1px solid #FCA5A5;
+        }
+        .badge-warn {
+            background-color: #FEF3C7;
+            color: #B45309;
+            border: 1px solid #FDE68A;
+        }
+
+        .eval-result-box {
+            background-color: #FFFFFF;
+            border: 1px solid #E2E8F0;
             border-radius: 8px;
-            font-weight: 800;
-            font-size: 1.15rem;
-            margin-top: 20px;
-            margin-bottom: 12px;
+            padding: 10px 14px;
+            margin-top: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            font-size: 0.875rem;
+        }
+        .eval-result-pass {
+            border-left: 4px solid #15803D;
+        }
+        .eval-result-fail {
+            border-left: 4px solid #B91C1C;
+        }
+
+        /* 10. LỊCH SỬ & BẢNG DỮ LIỆU CHUẨN Y KHOA */
+        .month-header-banner {
+            background-color: #FFFFFF;
+            color: #0F172A;
+            padding: 8px 14px;
+            border: 1px solid #E2E8F0;
+            border-left: 4px solid #0284C7;
+            border-radius: 8px;
+            font-weight: 600;
+            font-size: 0.95rem;
+            margin-top: 18px;
+            margin-bottom: 10px;
         }
         .history-meta-bar {
-            background-color: #F4FBF6;
-            border: 1px solid #B9E2C2;
+            background-color: #F8FAFC;
+            border: 1px solid #E2E8F0;
             border-radius: 8px;
-            padding: 10px 16px;
+            padding: 10px 14px;
             margin-bottom: 12px;
             display: flex;
             flex-wrap: wrap;
-            gap: 18px;
+            gap: 16px;
             align-items: center;
-            color: #0A2540;
-            font-size: 0.96rem;
+            color: #0F172A;
+            font-size: 0.875rem;
         }
-        .date-pill { background-color: #2E7D32; color: #FFFFFF; padding: 4px 12px; border-radius: 6px; font-family: 'JetBrains Mono', monospace; font-weight: 700; }
-        .lot-pill { background-color: #E3F2FD; color: #0A2540; border: 1px solid #90CAF9; padding: 3px 10px; border-radius: 6px; font-family: 'JetBrains Mono', monospace; font-weight: 700; }
+        .date-pill {
+            background-color: #E0F2FE;
+            color: #0369A1;
+            border: 1px solid #BAE6FD;
+            padding: 2px 10px;
+            border-radius: 6px;
+            font-weight: 600;
+            font-size: 0.85rem;
+            font-variant-numeric: tabular-nums;
+        }
+        .lot-pill {
+            background-color: #F1F5F9;
+            color: #0F172A;
+            border: 1px solid #CBD5E1;
+            padding: 2px 10px;
+            border-radius: 6px;
+            font-weight: 600;
+            font-size: 0.85rem;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .lab-table-wrapper {
+            max-height: 360px;
+            overflow-y: auto;
+            border: 1px solid #E2E8F0;
+            border-radius: 8px;
+            background-color: #FFFFFF;
+            margin-bottom: 8px;
+        }
+        .lab-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.875rem;
+            color: #0F172A;
+        }
+        .lab-table thead th {
+            position: sticky;
+            top: 0;
+            background-color: #F8FAFC;
+            color: #475569;
+            font-weight: 600;
+            padding: 10px 12px;
+            border-bottom: 1px solid #E2E8F0;
+            z-index: 1;
+        }
+        .lab-table tbody td {
+            padding: 9px 12px;
+            border-bottom: 1px solid #F1F5F9;
+            font-variant-numeric: tabular-nums;
+        }
+        .lab-table tbody tr:nth-child(even) {
+            background-color: #F8FAFC;
+        }
+        .lab-table tbody tr:hover {
+            background-color: #E0F2FE;
+        }
+        .text-left { text-align: left !important; }
+        .text-right { text-align: right !important; }
+        .text-center { text-align: center !important; }
     </style>
     """, unsafe_allow_html=True)
+
+
+def render_page_banner(title: str, desc: str):
+    st.markdown(f"""
+    <div class="page-banner">
+        <div class="page-banner-title">{title}</div>
+        <div class="page-banner-desc">{desc}</div>
+    </div>
+    """, unsafe_allow_html=True)
+
+
+def format_status_badge_html(status_val: str) -> str:
+    s = str(status_val).strip().upper()
+    if s in ("PASS", "ĐẠT", "✅ ĐẠT"):
+        return '<span class="status-badge badge-pass">✓ Đạt</span>'
+    if s in ("FAIL", "TRƯỢT", "KHÔNG ĐẠT", "❌ TRƯỢT"):
+        return '<span class="status-badge badge-fail">✕ Không đạt</span>'
+    return f'<span class="status-badge badge-warn">! {status_val}</span>'
 
 
 inject_custom_css()
 init_db()
 
-st.title("🔬 HỆ THỐNG ĐÁNH GIÁ LOT-TO-LOT (CLSI EP26-Ed2)")
-
 all_setups = load_all_setups()
 hist_df_master = load_stage2_history()
 
-tab_stage2, tab_history, tab_dashboard, tab_stage1, tab_db_setup = st.tabs([
-    "🧪 1. Đánh giá Mẫu thực tế (Stage 2)",
-    "🕒 2. Lịch sử Đánh giá",
-    "📊 3. Tổng quan LOT (Dashboard)",
-    "⚙️ 4. Cấu hình Thông số (Stage 1)",
-    "📂 5. Danh mục XN đã lưu"
-])
+# ==============================================================================
+# THANH MENU DỌC BÊN TRÁI (SIDEBAR)
+# ==============================================================================
+MENU_ITEMS = [
+    "1. Đánh giá Mẫu thực tế (Stage 2)",
+    "2. Lịch sử Đánh giá",
+    "3. Tổng quan LOT (Dashboard)",
+    "4. Cấu hình Thông số (Stage 1)",
+    "5. Danh mục XN đã lưu"
+]
+
+MENU_ICONS = {
+    "1. Đánh giá Mẫu thực tế (Stage 2)": ":material/science:  1. Đánh giá Mẫu thực tế (Stage 2)",
+    "2. Lịch sử Đánh giá": ":material/history:  2. Lịch sử Đánh giá",
+    "3. Tổng quan LOT (Dashboard)": ":material/dashboard:  3. Tổng quan LOT (Dashboard)",
+    "4. Cấu hình Thông số (Stage 1)": ":material/tune:  4. Cấu hình Thông số (Stage 1)",
+    "5. Danh mục XN đã lưu": ":material/folder_managed:  5. Danh mục XN đã lưu"
+}
+
+with st.sidebar:
+    st.markdown("""
+    <div class="sidebar-brand">
+        <div class="sidebar-brand-title">CLSI EP26-Ed2</div>
+        <div class="sidebar-brand-sub">Hệ thống đánh giá Lot-to-Lot</div>
+    </div>
+    <div class="sidebar-section-label">Danh mục chức năng</div>
+    """, unsafe_allow_html=True)
+
+    page = st.radio(
+        "Điều hướng",
+        options=MENU_ITEMS,
+        format_func=lambda x: MENU_ICONS.get(x, x),
+        label_visibility="collapsed"
+    )
 
 
 def convert_docx_to_pdf_bytes(docx_bytes):
@@ -216,15 +524,20 @@ def convert_docx_to_pdf_bytes(docx_bytes):
 
 
 # ==============================================================================
-# TAB 1: GIAI ĐOẠN 2 - ĐÁNH GIÁ MẪU HẰNG NGÀY
+# TRANG 1: GIAI ĐOẠN 2 - ĐÁNH GIÁ MẪU HẰNG NGÀY
 # ==============================================================================
-with tab_stage2:
+if page == "1. Đánh giá Mẫu thực tế (Stage 2)":
+    render_page_banner(
+        "Đánh giá Mẫu thực tế (Stage 2)",
+        "Nhập kết quả chạy mẫu song song trên lô hóa chất cũ và mới để kiểm tra độ tương đồng theo tiêu chuẩn CLSI EP26-Ed2."
+    )
+
     active_setups = all_setups[all_setups["is_selected"] == 1] if not all_setups.empty else pd.DataFrame()
     if active_setups.empty:
-        st.warning("⚠️ Chưa có cấu hình xét nghiệm nào. Vui lòng sang **Tab 4** để thiết lập thông số ban đầu!")
+        st.warning("Chưa có cấu hình xét nghiệm nào. Vui lòng chọn mục **4. Cấu hình Thông số (Stage 1)** ở thanh menu bên trái để thiết lập thông số ban đầu!", icon=":material/warning:")
     else:
         with st.container(border=True):
-            st.markdown("#### 🧾 THÔNG TIN ĐỢT ĐÁNH GIÁ")
+            st.markdown("#### :material/assignment: Thông tin đợt đánh giá")
             c1, c2, c3 = st.columns([1.5, 1.5, 1])
             with c1:
                 eval_test = st.selectbox("Chọn Xét nghiệm:", active_setups["test_name"].unique().tolist(),
@@ -242,7 +555,7 @@ with tab_stage2:
 
             c4, c5, c6 = st.columns([2, 1, 1])
             with c4:
-                reagent_name = st.text_input("🧪 Loại hóa chất thay thế (Huyết học/HbA1c):",
+                reagent_name = st.text_input("Loại hóa chất thay thế (Huyết học/HbA1c):",
                                              placeholder="VD: CELL-DYN Diluent/Sheath... (Bỏ trống nếu là Sinh hóa)",
                                              key="s2_reagent").strip()
             with c5:
@@ -253,7 +566,7 @@ with tab_stage2:
         test_levels_df = mach_df.sort_values("target_conc").reset_index(drop=True)
         unit_s2 = str(test_levels_df["unit"].iloc[0]) if not test_levels_df.empty else "mmol/L"
 
-        st.markdown("### 🧪 NHẬP KẾT QUẢ MẪU")
+        st.markdown("### :material/biotech: Nhập kết quả mẫu")
         flat_records_to_save = []
         summary_table_rows = []
 
@@ -267,7 +580,7 @@ with tab_stage2:
             with st.container(border=True):
                 head_col1, head_col2 = st.columns([2.2, 1.8])
                 with head_col1:
-                    st.markdown(f"#### 📍 Mức nồng độ: `{target_val:.3f} {unit_s2}`")
+                    st.markdown(f"#### :material/target: Mức nồng độ: `{target_val:.3f} {unit_s2}`")
                     st.markdown(
                         f"**Yêu cầu:** `{int(lv_row['n_samples'])} mẫu` &nbsp;|&nbsp; **Giới hạn RL:** `{rl_pct_db:.3f}%`")
 
@@ -287,18 +600,27 @@ with tab_stage2:
 
                 with out_col:
                     if not eval_res["has_data"]:
-                        st.info("Nhập ít nhất 1 cặp kết quả (> 0) để xem đánh giá.")
+                        st.info("Nhập ít nhất 1 cặp kết quả (> 0) để xem đánh giá.", icon=":material/info:")
                     else:
                         m1, m2, m3 = st.columns(3)
                         m1.metric("Trung bình d", f"{eval_res['mean_d']:.4f}")
                         m2.metric("Trung bình độ chệch (%)", f"{eval_res['mean_d_pct']:.3f}%")
                         m3.metric("Rejection Limit", f"{eval_res['rl_pct']:.3f}%")
+
                         if eval_res["result"] == "PASS":
-                            st.success(
-                                f"✅ **ĐẠT (PASS)**: `{eval_res['mean_d_pct']:.3f}%` < `{eval_res['rl_pct']:.3f}%`")
+                            st.markdown(f"""
+                            <div class="eval-result-box eval-result-pass">
+                                <div><strong>Kết luận:</strong> <span class="tabular-nums">{eval_res['mean_d_pct']:.3f}% &lt; {eval_res['rl_pct']:.3f}%</span></div>
+                                {format_status_badge_html('PASS')}
+                            </div>
+                            """, unsafe_allow_html=True)
                         else:
-                            st.error(
-                                f"❌ **FAIL (TỪ CHỐI)**: `{eval_res['mean_d_pct']:.3f}%` ≥ `{eval_res['rl_pct']:.3f}%`")
+                            st.markdown(f"""
+                            <div class="eval-result-box eval-result-fail">
+                                <div><strong>Kết luận:</strong> <span class="tabular-nums">{eval_res['mean_d_pct']:.3f}% &ge; {eval_res['rl_pct']:.3f}%</span></div>
+                                {format_status_badge_html('FAIL')}
+                            </div>
+                            """, unsafe_allow_html=True)
 
                         for _, d_row in eval_res["details"].iterrows():
                             flat_records_to_save.append({
@@ -315,22 +637,27 @@ with tab_stage2:
                         summary_table_rows.append({"Kết quả": eval_res["result"]})
 
         if summary_table_rows:
-            st.markdown("---")
-            if st.button("💾 LƯU KẾT QUẢ VÀO LỊCH SỬ", type="primary", use_container_width=True):
+            st.write("")
+            if st.button(":material/save: Lưu kết quả vào lịch sử", type="primary", use_container_width=True):
                 save_stage2_evaluation(flat_records_to_save)
-                st.success("Đã lưu biên bản đánh giá! Vui lòng qua Tab 2 để xuất file Word.")
+                st.success("Đã lưu biên bản đánh giá! Vui lòng chọn mục **2. Lịch sử Đánh giá** ở thanh menu bên trái để xuất file Word/PDF.", icon=":material/check_circle:")
                 time.sleep(0.5)
                 st.rerun()
 
+
 # ==============================================================================
-# TAB 2: LỊCH SỬ ĐÁNH GIÁ & XÁC NHẬN XÓA & THÙNG RÁC
+# TRANG 2: LỊCH SỬ ĐÁNH GIÁ & XÁC NHẬN XÓA & THÙNG RÁC
 # ==============================================================================
-with tab_history:
-    st.markdown("### 🕒 LỊCH SỬ ĐÁNH GIÁ MẪU THỰC TẾ")
+elif page == "2. Lịch sử Đánh giá":
+    render_page_banner(
+        "Lịch sử Đánh giá Mẫu thực tế",
+        "Tra cứu hồ sơ đánh giá Lot-to-Lot theo từng tháng, xuất biên bản báo cáo Word/PDF và khôi phục các bản ghi đã xóa."
+    )
+
     hist_df = hist_df_master.copy()
 
     if hist_df.empty:
-        st.info("Chưa có đợt đánh giá nào được lưu.")
+        st.info("Chưa có đợt đánh giá nào được lưu.", icon=":material/info:")
     else:
         hist_df['eval_date'] = pd.to_datetime(hist_df['eval_date'])
         hist_df = hist_df.sort_values(by=['eval_date', 'created_at'], ascending=[False, False])
@@ -338,7 +665,7 @@ with tab_history:
         year_months = hist_df['YearMonth'].unique().tolist()
 
         for ym in year_months:
-            st.markdown(f'<div class="month-header-banner">🗓️ THÁNG {ym}</div>', unsafe_allow_html=True)
+            st.markdown(f'<div class="month-header-banner">Tháng {ym}</div>', unsafe_allow_html=True)
             ym_df = hist_df[hist_df['YearMonth'] == ym]
             grouped_hist = ym_df.groupby('created_at', sort=False)
 
@@ -350,18 +677,20 @@ with tab_history:
                 l_old = first_row['lot_old']
                 l_new = first_row['lot_new']
                 reagent = str(first_row.get('reagent_name', '')).strip()
-                if reagent.lower() == 'nan': reagent = ''
+                if reagent.lower() == 'nan':
+                    reagent = ''
                 e_date_str = first_row['eval_date'].strftime('%Y-%m-%d')
                 display_date_str = first_row['eval_date'].strftime('%d/%m/%Y')
                 unit = first_row['unit']
 
                 overall_pass = all(str(r['status']).upper() == 'PASS' for _, r in group.iterrows())
-                status_icon = "🟢 ĐẠT" if overall_pass else "🔴 TRƯỢT"
-                reagent_str = f"  •  🧪 Hóa chất: {reagent}" if reagent else ""
-                expander_label = f"📅 [{display_date_str}]  —  {t_name} ({mach}){reagent_str}  •  LOT: {l_old} ➔ {l_new}  [{status_icon}]"
+                status_text = "✓ Đạt" if overall_pass else "✕ Không đạt"
+                reagent_str = f"  •  Hóa chất: {reagent}" if reagent else ""
+                expander_label = f":material/event: [{display_date_str}]  —  {t_name} ({mach}){reagent_str}  •  LOT: {l_old} ➔ {l_new}  [{status_text}]"
 
                 with st.expander(expander_label, expanded=False):
                     reagent_meta = f'<div><strong>Hóa chất:</strong> {reagent}</div>' if reagent else ''
+                    overall_badge = format_status_badge_html("PASS" if overall_pass else "FAIL")
                     st.markdown(f"""
                     <div class="history-meta-bar">
                         <div><strong>Ngày thực hiện:</strong> <span class="date-pill">{display_date_str}</span></div>
@@ -369,15 +698,53 @@ with tab_history:
                         <div><strong>Thiết bị:</strong> {mach} {f'({mach_id})' if mach_id else ''}</div>
                         {reagent_meta}
                         <div><strong>Chuyển đổi LOT:</strong> <span class="lot-pill">{l_old} ➔ {l_new}</span></div>
+                        <div><strong>Trạng thái:</strong> {overall_badge}</div>
                     </div>
                     """, unsafe_allow_html=True)
 
-                    display_cols = ['level_name', 'target_conc', 'sid', 'val_old', 'val_new', 'diff_d', 'mean_d',
-                                    'mean_d_pct', 'rl_pct', 'status']
-                    df_show = group[display_cols].copy()
-                    df_show.columns = ['Mức (Level)', 'Nồng độ đích', 'Mã mẫu (SID)', 'KQ LOT cũ', 'KQ LOT mới',
-                                       'Độ chệch |d|', 'TB |d|', 'TB |d| (%)', 'Giới hạn RL (%)', 'Kết quả']
-                    st.dataframe(df_show.style.format(precision=3), use_container_width=True, hide_index=True)
+                    # Bảng HTML chuẩn y khoa: sticky header, zebra rows, số căn phải, badge trạng thái
+                    rows_html = []
+                    for _, r in group.iterrows():
+                        badge_cell = format_status_badge_html(r['status'])
+                        rows_html.append(f"""
+                        <tr>
+                            <td class="text-left">{r['level_name']}</td>
+                            <td class="text-right">{float(r['target_conc']):.3f}</td>
+                            <td class="text-left">{r['sid']}</td>
+                            <td class="text-right">{float(r['val_old']):.3f}</td>
+                            <td class="text-right">{float(r['val_new']):.3f}</td>
+                            <td class="text-right">{float(r['diff_d']):.3f}</td>
+                            <td class="text-right">{float(r['mean_d']):.3f}</td>
+                            <td class="text-right">{float(r['mean_d_pct']):.3f}</td>
+                            <td class="text-right">{float(r['rl_pct']):.3f}</td>
+                            <td class="text-center">{badge_cell}</td>
+                        </tr>
+                        """)
+
+                    table_html = f"""
+                    <div class="lab-table-wrapper">
+                        <table class="lab-table">
+                            <thead>
+                                <tr>
+                                    <th class="text-left">Mức (Level)</th>
+                                    <th class="text-right">Nồng độ đích</th>
+                                    <th class="text-left">Mã mẫu (SID)</th>
+                                    <th class="text-right">KQ LOT cũ</th>
+                                    <th class="text-right">KQ LOT mới</th>
+                                    <th class="text-right">Độ chệch |d|</th>
+                                    <th class="text-right">TB |d|</th>
+                                    <th class="text-right">TB |d| (%)</th>
+                                    <th class="text-right">Giới hạn RL (%)</th>
+                                    <th class="text-center">Kết quả</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {"".join(rows_html)}
+                            </tbody>
+                        </table>
+                    </div>
+                    """
+                    st.markdown(table_html, unsafe_allow_html=True)
 
                     st.write("")
                     col_word, col_pdf, col_del = st.columns([1, 1, 1])
@@ -386,14 +753,18 @@ with tab_history:
                         setup_df = all_setups[(all_setups['test_name'] == t_name) & (all_setups['machine'] == mach)]
                         docx_file = generate_report_docx(e_date_str, t_name, unit, mach, mach_id, reagent, l_old, l_new,
                                                          setup_df, group)
-                        st.download_button(label="📄 XUẤT FILE WORD", data=docx_file,
-                                           file_name=f"LotToLot_{t_name}_{l_old}_{l_new}.docx",
-                                           mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                                           key=f"dl_word_{created_at}", use_container_width=True)
+                        st.download_button(
+                            label=":material/description: Xuất file Word",
+                            data=docx_file,
+                            file_name=f"LotToLot_{t_name}_{l_old}_{l_new}.docx",
+                            mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                            key=f"dl_word_{created_at}",
+                            use_container_width=True
+                        )
 
                     with col_pdf:
                         if f"pdf_ready_{created_at}" not in st.session_state:
-                            if st.button("📕 TẠO FILE PDF", key=f"create_pdf_{created_at}", use_container_width=True):
+                            if st.button(":material/picture_as_pdf: Tạo file PDF", key=f"create_pdf_{created_at}", use_container_width=True):
                                 with st.spinner("Đang vẽ PDF..."):
                                     pdf_bytes = convert_docx_to_pdf_bytes(docx_file.getvalue())
                                     if pdf_bytes:
@@ -401,13 +772,16 @@ with tab_history:
                                         st.session_state[f"pdf_ready_{created_at}"] = True
                                         st.rerun()
                                     else:
-                                        st.error("Chưa cài LibreOffice trên Cloud!")
+                                        st.error("Chưa cài LibreOffice trên Cloud!", icon=":material/error:")
                         else:
-                            st.download_button(label="⬇️ TẢI PDF XUỐNG",
-                                               data=st.session_state[f"pdf_bytes_{created_at}"],
-                                               file_name=f"LotToLot_{t_name}_{l_old}_{l_new}.pdf",
-                                               mime="application/pdf", key=f"dl_pdf_{created_at}",
-                                               use_container_width=True)
+                            st.download_button(
+                                label=":material/download: Tải PDF xuống",
+                                data=st.session_state[f"pdf_bytes_{created_at}"],
+                                file_name=f"LotToLot_{t_name}_{l_old}_{l_new}.pdf",
+                                mime="application/pdf",
+                                key=f"dl_pdf_{created_at}",
+                                use_container_width=True
+                            )
 
                     with col_del:
                         # TÍNH NĂNG XÁC NHẬN TRƯỚC KHI XÓA
@@ -415,28 +789,28 @@ with tab_history:
                             st.session_state[f"confirm_del_{created_at}"] = False
 
                         if not st.session_state[f"confirm_del_{created_at}"]:
-                            if st.button("🗑️ Xóa đợt này", key=f"del_hist_{created_at}", use_container_width=True):
+                            if st.button(":material/delete: Xóa đợt này", key=f"del_hist_{created_at}", use_container_width=True):
                                 st.session_state[f"confirm_del_{created_at}"] = True
                                 st.rerun()
                         else:
-                            st.warning("⚠️ Bạn có chắc chắn muốn xóa? (Dữ liệu sẽ vào Thùng rác)")
+                            st.warning("Bạn có chắc chắn muốn xóa? (Dữ liệu sẽ vào Thùng rác)", icon=":material/warning:")
                             c_yes, c_no = st.columns(2)
                             with c_yes:
-                                if st.button("✔️ Xác nhận", key=f"yes_del_{created_at}", use_container_width=True):
+                                if st.button(":material/check: Xác nhận", key=f"yes_del_{created_at}", type="primary", use_container_width=True):
                                     delete_stage2_evaluation(created_at)
                                     st.session_state[f"confirm_del_{created_at}"] = False
                                     st.rerun()
                             with c_no:
-                                if st.button("❌ Hủy", key=f"no_del_{created_at}", use_container_width=True):
+                                if st.button(":material/close: Hủy", key=f"no_del_{created_at}", use_container_width=True):
                                     st.session_state[f"confirm_del_{created_at}"] = False
                                     st.rerun()
 
-    ## TÍNH NĂNG THÙNG RÁC - HIỂN THỊ DƯỚI CÙNG CỦA TAB LỊCH SỬ
-    st.markdown("---")
-    with st.expander("♻️ THÙNG RÁC (KHÔI PHỤC HOẶC XÓA VĨNH VIỄN)", expanded=False):
+    # TÍNH NĂNG THÙNG RÁC - HIỂN THỊ DƯỚI CÙNG CỦA TRANG LỊCH SỬ
+    st.write("")
+    with st.expander(":material/restore_from_trash: Thùng rác (Khôi phục hoặc xóa vĩnh viễn)", expanded=False):
         trash_df = load_trash_history()
         if trash_df.empty:
-            st.info("Thùng rác hiện đang trống.")
+            st.info("Thùng rác hiện đang trống.", icon=":material/info:")
         else:
             grouped_trash = trash_df.groupby('created_at', sort=False)
             for c_at, group in grouped_trash:
@@ -446,35 +820,37 @@ with tab_history:
                 reagent = str(first.get('reagent_name', '')).strip()
                 reagent_str = f" ({reagent})" if reagent and reagent.lower() != 'nan' else ""
 
-                # Chia thành 3 cột: Nội dung (cột rộng), Nút Khôi phục, Nút Xóa
                 c_trash1, c_restore, c_delete = st.columns([3, 1, 1])
                 with c_trash1:
-                    st.markdown(f"**🗑️ {disp_date} | {t_name}{reagent_str} | LOT: {first['lot_old']} ➔ {first['lot_new']}**")
+                    st.markdown(f"**{disp_date}** &nbsp;|&nbsp; **{t_name}**{reagent_str} &nbsp;|&nbsp; LOT: `{first['lot_old']} ➔ {first['lot_new']}`")
 
                 with c_restore:
-                    if st.button("🔄 Khôi phục", key=f"restore_{c_at}", use_container_width=True):
+                    if st.button(":material/restore: Khôi phục", key=f"restore_{c_at}", use_container_width=True):
                         restore_stage2_evaluation(c_at)
-                        st.success("Đã khôi phục!")
+                        st.success("Đã khôi phục!", icon=":material/check_circle:")
                         time.sleep(0.5)
                         st.rerun()
 
                 with c_delete:
-                    # Bấm xóa là đi luôn, không cần hỏi lại
-                    if st.button("❌ Xóa hẳn", key=f"perm_del_{c_at}", use_container_width=True):
+                    if st.button(":material/delete_forever: Xóa hẳn", key=f"perm_del_{c_at}", use_container_width=True):
                         permanently_delete_stage2_evaluation(c_at)
-                        st.error("Đã xóa vĩnh viễn!")
+                        st.error("Đã xóa vĩnh viễn!", icon=":material/delete:")
                         time.sleep(0.5)
                         st.rerun()
-                st.write("---")
+
 
 # ==============================================================================
-# TAB 3: TỔNG QUAN LOT (DASHBOARD)
+# TRANG 3: TỔNG QUAN LOT (DASHBOARD)
 # ==============================================================================
-with tab_dashboard:
-    st.markdown("### 📊 BẢNG ĐIỀU KHIỂN HIỆN TRẠNG HÓA CHẤT (LOT)")
+elif page == "3. Tổng quan LOT (Dashboard)":
+    render_page_banner(
+        "Tổng quan LOT (Dashboard)",
+        "Bảng điều khiển hiện trạng hóa chất và lịch sử thay đổi số LOT trên từng thiết bị phân tích."
+    )
+
     df_hist_dash = hist_df_master.copy()
     if df_hist_dash.empty:
-        st.info("Chưa có dữ liệu đánh giá.")
+        st.info("Chưa có dữ liệu đánh giá.", icon=":material/info:")
     else:
         df_hist_dash['reagent_name'] = df_hist_dash['reagent_name'].fillna('').astype(str).str.strip()
         df_hist_dash.loc[df_hist_dash['reagent_name'].str.lower() == 'nan', 'reagent_name'] = ''
@@ -488,37 +864,71 @@ with tab_dashboard:
 
         col_sh, col_hh = st.columns(2)
 
-
         def render_dashboard_section(df_section, title, icon, group_by_col):
-            st.markdown(f"#### {icon} {title}")
-            if df_section.empty: return st.write("Chưa có dữ liệu.")
+            st.markdown(f"### {icon} {title}")
+            if df_section.empty:
+                st.info("Chưa có dữ liệu.", icon=":material/info:")
+                return
             for mach in sorted(df_section['machine'].unique()):
                 with st.container(border=True):
-                    st.markdown(f"##### 🖨️ MÁY: **{mach}**")
+                    st.markdown(f"#### :material/dns: Máy: **{mach}**")
                     for item_name, group in df_section[df_section['machine'] == mach].groupby(group_by_col, sort=False):
                         latest_eval = group.iloc[0]
-                        with st.expander(
-                                f"🧪 {item_name}  |  LOT đang dùng: {latest_eval['lot_new']}  (Cập nhật: 📅 {latest_eval['eval_date_obj'].strftime('%d/%m/%Y')})"):
-                            hist_display = group[['eval_date_obj', 'lot_old', 'lot_new', 'status']].copy()
-                            hist_display['eval_date_obj'] = hist_display['eval_date_obj'].dt.strftime('%d/%m/%Y')
-                            hist_display['status'] = hist_display['status'].map(
-                                {'PASS': '✅ Đạt', 'FAIL': '❌ Trượt'}).fillna(hist_display['status'])
-                            hist_display.columns = ['📅 Ngày thay LOT', 'LOT cũ', 'LOT mới', 'Kết quả']
-                            st.dataframe(hist_display.reset_index(drop=True), use_container_width=True, hide_index=True)
-
+                        latest_status_str = "✓ Đạt" if str(latest_eval['status']).upper() == "PASS" else "✕ Không đạt"
+                        expander_title = (
+                            f":material/vaccines: {item_name}  |  LOT đang dùng: {latest_eval['lot_new']}  "
+                            f"(Cập nhật: {latest_eval['eval_date_obj'].strftime('%d/%m/%Y')})  [{latest_status_str}]"
+                        )
+                        with st.expander(expander_title):
+                            dash_rows_html = []
+                            for _, r in group.iterrows():
+                                date_fmt = r['eval_date_obj'].strftime('%d/%m/%Y')
+                                badge_html = format_status_badge_html(r['status'])
+                                dash_rows_html.append(f"""
+                                <tr>
+                                    <td class="text-left">{date_fmt}</td>
+                                    <td class="text-right">{r['lot_old']}</td>
+                                    <td class="text-right">{r['lot_new']}</td>
+                                    <td class="text-center">{badge_html}</td>
+                                </tr>
+                                """)
+                            dash_table_html = f"""
+                            <div class="lab-table-wrapper">
+                                <table class="lab-table">
+                                    <thead>
+                                        <tr>
+                                            <th class="text-left">Ngày thay LOT</th>
+                                            <th class="text-right">LOT cũ</th>
+                                            <th class="text-right">LOT mới</th>
+                                            <th class="text-center">Kết quả</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {"".join(dash_rows_html)}
+                                    </tbody>
+                                </table>
+                            </div>
+                            """
+                            st.markdown(dash_table_html, unsafe_allow_html=True)
 
         with col_sh:
-            render_dashboard_section(df_sh, "SINH HÓA - MIỄN DỊCH", "🧬", group_by_col="test_name")
+            render_dashboard_section(df_sh, "Sinh hóa - Miễn dịch", ":material/water_drop:", group_by_col="test_name")
         with col_hh:
-            render_dashboard_section(df_hh, "HUYẾT HỌC - HBA1C", "🩸", group_by_col="reagent_name")
+            render_dashboard_section(df_hh, "Huyết học - HbA1c", ":material/bloodtype:", group_by_col="reagent_name")
+
 
 # ==============================================================================
-# TAB 4: GIAI ĐOẠN 1 - SETUP THÔNG SỐ
+# TRANG 4: GIAI ĐOẠN 1 - SETUP THÔNG SỐ
 # ==============================================================================
-with tab_stage1:
+elif page == "4. Cấu hình Thông số (Stage 1)":
+    render_page_banner(
+        "Cấu hình Thông số (Stage 1)",
+        "Thiết lập nồng độ đích, TEa%, Swrl% và Sr% để hệ thống tra bảng tính số lượng mẫu (n), lực thống kê (Power) và giới hạn từ chối (RL)."
+    )
+
     all_setups_for_dropdown = all_setups
     with st.container(border=True):
-        st.markdown("#### 📌 THÔNG TIN XÉT NGHIỆM & THIẾT BỊ")
+        st.markdown("#### :material/tune: Thông tin xét nghiệm & thiết bị")
         col1, col2, col3, col4, col5 = st.columns([1.5, 1.5, 1.2, 1, 1.5])
         with col1:
             db_tests = all_setups_for_dropdown[
@@ -544,31 +954,43 @@ with tab_stage1:
         existing_unit = str(saved_df["unit"].iloc[0]) if not saved_df.empty and "unit" in saved_df.columns and pd.notna(
             saved_df["unit"].iloc[0]) and str(saved_df["unit"].iloc[0]) != 'nan' else "mmol/L"
 
-        with col3: machine_id = st.text_input("Mã thiết bị:", value=existing_mach_id).strip()
-        with col4: unit_name = st.text_input("Đơn vị đo:", value=existing_unit)
-        with col5: global_target_power = st.selectbox("Power tối thiểu:",
-                                                      options=[0.0, 0.50, 0.60, 0.70, 0.80, 0.85, 0.90, 0.95],
-                                                      format_func=lambda
-                                                          x: "Hiển thị tất cả" if x == 0.0 else f">= {x * 100}%",
-                                                      index=0)
+        with col3:
+            machine_id = st.text_input("Mã thiết bị:", value=existing_mach_id).strip()
+        with col4:
+            unit_name = st.text_input("Đơn vị đo:", value=existing_unit)
+        with col5:
+            global_target_power = st.selectbox(
+                "Power tối thiểu:",
+                options=[0.0, 0.50, 0.60, 0.70, 0.80, 0.85, 0.90, 0.95],
+                format_func=lambda x: "Hiển thị tất cả" if x == 0.0 else f">= {x * 100}%",
+                index=0
+            )
 
     if not saved_df.empty:
-        st.info("🔄 Đã lấy dữ liệu cũ từ Database. Bạn có thể chỉnh sửa và bấm Lưu để cập nhật.")
-        init_input_df = pd.DataFrame({"Chọn chạy (Vàng)": saved_df["is_selected"].astype(bool),
-                                      "Target concentration": saved_df["target_conc"].astype(float),
-                                      "TEa%": saved_df["tea_pct"].astype(float),
-                                      "Swrl = CVwrl %": saved_df["swrl_pct"].astype(float),
-                                      "Sr = CVr %": saved_df["sr_pct"].astype(float)})
+        st.info("Đã lấy dữ liệu cũ từ Database. Bạn có thể chỉnh sửa và bấm Lưu để cập nhật.", icon=":material/sync:")
+        init_input_df = pd.DataFrame({
+            "Chọn chạy (Vàng)": saved_df["is_selected"].astype(bool),
+            "Target concentration": saved_df["target_conc"].astype(float),
+            "TEa%": saved_df["tea_pct"].astype(float),
+            "Swrl = CVwrl %": saved_df["swrl_pct"].astype(float),
+            "Sr = CVr %": saved_df["sr_pct"].astype(float)
+        })
     else:
-        init_input_df = DEFAULT_SAMPLES.get((test_name, machine_name), pd.DataFrame(
-            [{"Chọn chạy (Vàng)": True, "Target concentration": 6.37, "TEa%": 12.9, "Swrl = CVwrl %": 0.5,
-              "Sr = CVr %": 0.3}])).copy()
+        init_input_df = DEFAULT_SAMPLES.get((test_name, machine_name), pd.DataFrame([
+            {
+                "Chọn chạy (Vàng)": True,
+                "Target concentration": 6.37,
+                "TEa%": 12.9,
+                "Swrl = CVwrl %": 0.5,
+                "Sr = CVr %": 0.3
+            }
+        ])).copy()
 
-    st.markdown("### 📝 NHẬP THÔNG SỐ VÀ CHỌN MỨC NỒNG ĐỘ")
+    st.markdown("### :material/edit_note: Nhập thông số và chọn mức nồng độ")
     edited_input = st.data_editor(
         init_input_df, num_rows="dynamic", use_container_width=True,
         column_config={
-            "Chọn chạy (Vàng)": st.column_config.CheckboxColumn("✅ Chọn chạy"),
+            "Chọn chạy (Vàng)": st.column_config.CheckboxColumn("Chọn chạy"),
             "Target concentration": st.column_config.NumberColumn("Target concentration", format="%.3f"),
             "TEa%": st.column_config.NumberColumn("TEa%", format="%.3f"),
             "Swrl = CVwrl %": st.column_config.NumberColumn("Swrl = CVwrl %", format="%.3f"),
@@ -582,76 +1004,104 @@ with tab_stage1:
     if not selected_input.empty:
         chosen_final_rows = []
         for idx, row in selected_input.iterrows():
-            if pd.isna(row["Target concentration"]) or pd.isna(row["TEa%"]): continue
+            if pd.isna(row["Target concentration"]) or pd.isna(row["TEa%"]):
+                continue
             target_c = float(row["Target concentration"])
-            candidates = get_candidate_options_for_row(tea_pct=float(row["TEa%"]),
-                                                       swrl_pct=float(row["Swrl = CVwrl %"]),
-                                                       sr_pct=float(row["Sr = CVr %"]), num_levels=num_selected_levels,
-                                                       desired_power=global_target_power, sort_mode="min_n_max_power")
+            candidates = get_candidate_options_for_row(
+                tea_pct=float(row["TEa%"]),
+                swrl_pct=float(row["Swrl = CVwrl %"]),
+                sr_pct=float(row["Sr = CVr %"]),
+                num_levels=num_selected_levels,
+                desired_power=global_target_power,
+                sort_mode="min_n_max_power"
+            )
 
             with st.container(border=True):
-                st.markdown(f"#### 📍 Mức nồng độ: `{target_c:.3f} {unit_name}`")
+                st.markdown(f"#### :material/target: Mức nồng độ: `{target_c:.3f} {unit_name}`")
                 if len(candidates) > 1:
                     option_labels = [
-                        f"🌟 Option {i + 1} (Tra Bảng A{num_selected_levels}): {c['n_samples']} mẫu | Power = {c['power_achieve']:.3f} | CD/Swrl = {c['cd_swrl']} | Sr/Swrl = {c['sr_swrl']} | K = {c['k_factor']} | RL = {c['rejection_limit']:.2f}%"
-                        for i, c in enumerate(candidates)]
-                    selected_label = st.selectbox("Chọn phương án chốt:", options=option_labels, index=0,
-                                                  key=f"pick_{test_name}_{machine_name}_{idx}",
-                                                  label_visibility="collapsed")
+                        f"Phương án {i + 1} (Tra Bảng A{num_selected_levels}): {c['n_samples']} mẫu | Power = {c['power_achieve']:.3f} | CD/Swrl = {c['cd_swrl']} | Sr/Swrl = {c['sr_swrl']} | K = {c['k_factor']} | RL = {c['rejection_limit']:.2f}%"
+                        for i, c in enumerate(candidates)
+                    ]
+                    selected_label = st.selectbox(
+                        "Chọn phương án chốt:",
+                        options=option_labels,
+                        index=0,
+                        key=f"pick_{test_name}_{machine_name}_{idx}",
+                        label_visibility="collapsed"
+                    )
                     picked_cand = candidates[option_labels.index(selected_label)]
                 else:
                     picked_cand = candidates[0]
                     st.info(
-                        f"💡 Tra Bảng A{num_selected_levels} | Cần {picked_cand['n_samples']} mẫu | Power = {picked_cand['power_achieve']:.3f} | CD/Swrl = {picked_cand['cd_swrl']} | Sr/Swrl = {picked_cand['sr_swrl']} | K = {picked_cand['k_factor']} | RL = {picked_cand['rejection_limit']:.2f}%")
+                        f"Tra Bảng A{num_selected_levels} | Cần {picked_cand['n_samples']} mẫu | Power = {picked_cand['power_achieve']:.3f} | CD/Swrl = {picked_cand['cd_swrl']} | Sr/Swrl = {picked_cand['sr_swrl']} | K = {picked_cand['k_factor']} | RL = {picked_cand['rejection_limit']:.2f}%",
+                        icon=":material/lightbulb:"
+                    )
 
                 row_to_save = row.copy().to_dict()
-                row_to_save.update({"unit": unit_name, "power_achieve": picked_cand["power_achieve"],
-                                    "cd_swrl": picked_cand["cd_swrl"], "sr_swrl": picked_cand["sr_swrl"],
-                                    "k_factor": picked_cand["k_factor"],
-                                    "rejection_limit": picked_cand["rejection_limit"],
-                                    "n_samples": picked_cand["n_samples"], "Ghi chú": picked_cand.get("note",
-                                                                                                      f"Đạt chuẩn (Mốc tra bảng: CD/Swrl={picked_cand['cd_swrl']}, Sr/Swrl={picked_cand['sr_swrl']})")})
+                row_to_save.update({
+                    "unit": unit_name,
+                    "power_achieve": picked_cand["power_achieve"],
+                    "cd_swrl": picked_cand["cd_swrl"],
+                    "sr_swrl": picked_cand["sr_swrl"],
+                    "k_factor": picked_cand["k_factor"],
+                    "rejection_limit": picked_cand["rejection_limit"],
+                    "n_samples": picked_cand["n_samples"],
+                    "Ghi chú": picked_cand.get(
+                        "note",
+                        f"Đạt chuẩn (Mốc tra bảng: CD/Swrl={picked_cand['cd_swrl']}, Sr/Swrl={picked_cand['sr_swrl']})"
+                    )
+                })
                 chosen_final_rows.append(row_to_save)
 
-        if st.button("✅ LƯU CẤU HÌNH VÀO DATABASE", type="primary", use_container_width=True):
+        if st.button(":material/save: Lưu cấu hình vào Database", type="primary", use_container_width=True):
             save_test_setup(test_name, machine_name, machine_id, pd.DataFrame(chosen_final_rows))
-            st.success(f"Đã lưu thành công thông số và Mã thiết bị cho {test_name} - {machine_name}!")
+            st.success(f"Đã lưu thành công thông số và Mã thiết bị cho {test_name} - {machine_name}!", icon=":material/check_circle:")
             time.sleep(0.5)
             st.rerun()
 
+
 # ==============================================================================
-# TAB 5: DANH MỤC CẤU HÌNH ĐÃ LƯU
+# TRANG 5: DANH MỤC CẤU HÌNH ĐÃ LƯU
 # ==============================================================================
-with tab_db_setup:
-    st.markdown("### 📂 CẤU HÌNH STAGE 1 HIỆN CÓ")
-    with st.expander("📥 KHÔI PHỤC / IMPORT DỮ LIỆU TỪ FILE (.CSV, .XLSX)", expanded=False):
+elif page == "5. Danh mục XN đã lưu":
+    render_page_banner(
+        "Danh mục Xét nghiệm đã lưu",
+        "Quản lý toàn bộ thông số cấu hình Stage 1 hiện có trong cơ sở dữ liệu và hỗ trợ khôi phục dữ liệu từ file CSV/Excel."
+    )
+
+    with st.expander(":material/upload_file: Khôi phục / Import dữ liệu từ file (.csv, .xlsx)", expanded=False):
         uploaded_file = st.file_uploader("Kéo thả file dữ liệu đã xuất từ hệ thống vào đây", type=["csv", "xlsx"])
         if uploaded_file is not None:
             try:
                 df_import = pd.read_csv(uploaded_file) if uploaded_file.name.endswith(".csv") else pd.read_excel(
                     uploaded_file)
                 if "test_name" in df_import.columns and "target_conc" in df_import.columns:
-                    st.info(f"Phát hiện **{len(df_import)}** dòng cấu hình hợp lệ.")
-                    if st.button("✅ Bắt đầu Import Dữ liệu", type="primary", use_container_width=True):
+                    st.info(f"Phát hiện **{len(df_import)}** dòng cấu hình hợp lệ.", icon=":material/info:")
+                    if st.button(":material/check_circle: Bắt đầu Import Dữ liệu", type="primary", use_container_width=True):
                         import_stage1_from_dataframe(df_import)
-                        st.success("🎉 Khôi phục thành công!")
+                        st.success("Khôi phục thành công!", icon=":material/check_circle:")
                         time.sleep(1)
                         st.rerun()
                 else:
-                    st.error("❌ File không đúng định dạng!")
+                    st.error("File không đúng định dạng!", icon=":material/error:")
             except Exception as e:
-                st.error(f"Lỗi đọc file: {e}")
+                st.error(f"Lỗi đọc file: {e}", icon=":material/error:")
 
     if not all_setups.empty:
-        st.dataframe(all_setups, use_container_width=True, hide_index=True)
-        c_d1, c_d2, c_d3 = st.columns([2, 2, 1])
-        with c_d1:
-            del_test = st.selectbox("Chọn XN cần xóa:", all_setups["test_name"].unique(), key="d_t1")
-        with c_d2:
-            del_mach = st.selectbox("Chọn Máy cần xóa:", all_setups["machine"].unique(), key="d_m1")
-        with c_d3:
-            st.write("");
-            st.write("")
-            if st.button("🗑️ Xóa cấu hình", use_container_width=True):
-                delete_specific_setup(del_test, del_mach)
-                st.rerun()
+        with st.container(border=True):
+            st.markdown("#### :material/table_chart: Danh sách cấu hình Stage 1 hiện có")
+            st.dataframe(all_setups, use_container_width=True, hide_index=True)
+            c_d1, c_d2, c_d3 = st.columns([2, 2, 1])
+            with c_d1:
+                del_test = st.selectbox("Chọn XN cần xóa:", all_setups["test_name"].unique(), key="d_t1")
+            with c_d2:
+                del_mach = st.selectbox("Chọn Máy cần xóa:", all_setups["machine"].unique(), key="d_m1")
+            with c_d3:
+                st.write("")
+                st.write("")
+                if st.button(":material/delete: Xóa cấu hình", use_container_width=True):
+                    delete_specific_setup(del_test, del_mach)
+                    st.rerun()
+    else:
+        st.info("Chưa có cấu hình xét nghiệm nào được lưu.", icon=":material/info:")
