@@ -52,7 +52,7 @@ def inject_custom_css():
         }
 
         .block-container {
-            padding-top: 1.1rem !important;
+            padding-top: 3.8rem !important;
             padding-bottom: 2rem !important;
             padding-left: 1.6rem !important;
             padding-right: 1.6rem !important;
