@@ -10,7 +10,7 @@ from report_generator import generate_report_docx
 from database import (
     init_db, save_test_setup, load_all_setups, load_specific_setup,
     delete_specific_setup, save_stage2_evaluation, load_stage2_history,
-    delete_stage2_evaluation, import_stage1_from_dataframe, load_trash_history, restore_stage2_evaluation
+    delete_stage2_evaluation, import_stage1_from_dataframe, load_trash_history, restore_stage2_evaluation, permanently_delete_stage2_evaluation
 )
 
 st.set_page_config(page_title="CLSI EP26 - Lot-to-Lot", layout="wide", initial_sidebar_state="collapsed")
@@ -431,9 +431,9 @@ with tab_history:
                                     st.session_state[f"confirm_del_{created_at}"] = False
                                     st.rerun()
 
-    # TÍNH NĂNG THÙNG RÁC - HIỂN THỊ DƯỚI CÙNG CỦA TAB LỊCH SỬ
+    ## TÍNH NĂNG THÙNG RÁC - HIỂN THỊ DƯỚI CÙNG CỦA TAB LỊCH SỬ
     st.markdown("---")
-    with st.expander("♻️ THÙNG RÁC (KHÔI PHỤC DỮ LIỆU ĐÃ XÓA)", expanded=False):
+    with st.expander("♻️ THÙNG RÁC (KHÔI PHỤC HOẶC XÓA VĨNH VIỄN)", expanded=False):
         trash_df = load_trash_history()
         if trash_df.empty:
             st.info("Thùng rác hiện đang trống.")
@@ -446,14 +446,23 @@ with tab_history:
                 reagent = str(first.get('reagent_name', '')).strip()
                 reagent_str = f" ({reagent})" if reagent and reagent.lower() != 'nan' else ""
 
-                c_trash1, c_trash2 = st.columns([4, 1])
+                # Chia thành 3 cột: Nội dung (cột rộng), Nút Khôi phục, Nút Xóa
+                c_trash1, c_restore, c_delete = st.columns([3, 1, 1])
                 with c_trash1:
-                    st.markdown(
-                        f"**🗑️ {disp_date} | {t_name}{reagent_str} | LOT: {first['lot_old']} ➔ {first['lot_new']}**")
-                with c_trash2:
+                    st.markdown(f"**🗑️ {disp_date} | {t_name}{reagent_str} | LOT: {first['lot_old']} ➔ {first['lot_new']}**")
+
+                with c_restore:
                     if st.button("🔄 Khôi phục", key=f"restore_{c_at}", use_container_width=True):
                         restore_stage2_evaluation(c_at)
-                        st.success("Đã khôi phục thành công!")
+                        st.success("Đã khôi phục!")
+                        time.sleep(0.5)
+                        st.rerun()
+
+                with c_delete:
+                    # Bấm xóa là đi luôn, không cần hỏi lại
+                    if st.button("❌ Xóa hẳn", key=f"perm_del_{c_at}", use_container_width=True):
+                        permanently_delete_stage2_evaluation(c_at)
+                        st.error("Đã xóa vĩnh viễn!")
                         time.sleep(0.5)
                         st.rerun()
                 st.write("---")

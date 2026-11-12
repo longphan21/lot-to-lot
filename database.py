@@ -352,3 +352,21 @@ def import_stage1_from_dataframe(df: pd.DataFrame) -> int:
 
     load_all_setups.clear()
     return imported_count
+
+def permanently_delete_stage2_evaluation(created_at: str):
+    """Xóa vĩnh viễn dữ liệu khỏi thùng rác (stage2_trash)"""
+    sh = get_spreadsheet()
+    ws_trash = sh.worksheet("stage2_trash")
+    trash_data = ws_trash.get_all_records()
+    if not trash_data: return
+
+    to_keep_in_trash = [row for row in trash_data if str(row.get("created_at")) != str(created_at)]
+
+    ws_trash.clear()
+    if to_keep_in_trash:
+        df_trash = pd.DataFrame(to_keep_in_trash).reindex(columns=STAGE2_HEADERS).fillna("")
+        ws_trash.update([STAGE2_HEADERS] + df_trash.values.tolist())
+    else:
+        ws_trash.append_row(STAGE2_HEADERS)
+
+    load_trash_history.clear()
