@@ -34,7 +34,7 @@ DEFAULT_SAMPLES = {
 
 
 def render_html(html_str: str):
-    """Xóa toàn bộ khoảng trắng thụt đầu dòng để Streamlit không hiểu nhầm HTML là khối code."""
+    """Xóa khoảng trắng đầu dòng để Streamlit luôn hiển thị đúng HTML."""
     clean_html = "\n".join(line.lstrip() for line in html_str.splitlines() if line.strip())
     st.markdown(clean_html, unsafe_allow_html=True)
 
@@ -42,7 +42,7 @@ def render_html(html_str: str):
 def inject_custom_css():
     render_html("""
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800&family=JetBrains+Mono:wght@600;700&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600;700&display=swap');
 
         /* 1. TỔNG THỂ NỀN XANH LÁ NHẠT & CHỮ XANH TỐI DA TRỜI (#0A2540) */
         html, body, .stApp {
@@ -52,10 +52,10 @@ def inject_custom_css():
         }
 
         .block-container {
-            padding-top: 1.5rem !important;
-            padding-bottom: 2.5rem !important;
-            padding-left: 2.2rem !important;
-            padding-right: 2.2rem !important;
+            padding-top: 1.2rem !important;
+            padding-bottom: 2rem !important;
+            padding-left: 1.8rem !important;
+            padding-right: 1.8rem !important;
             max-width: 100% !important;
         }
 
@@ -63,7 +63,13 @@ def inject_custom_css():
             font-variant-numeric: tabular-nums !important;
         }
 
-        /* 2. TIÊU ĐỀ RÕ NÉT */
+        /* Ẩn icon mắt xích (anchor link) cạnh các tiêu đề */
+        [data-testid="stHeaderActionElements"],
+        h1 a, h2 a, h3 a, h4 a, h5 a, h6 a {
+            display: none !important;
+        }
+
+        /* 2. TIÊU ĐỀ GỌN GÀNG, VỪA VẶN */
         h1, h2, h3, h4, h5, h6 {
             color: #0A2540 !important;
             font-family: 'Be Vietnam Pro', sans-serif !important;
@@ -72,23 +78,23 @@ def inject_custom_css():
             margin-top: 0 !important;
         }
         h3 {
-            font-size: 1.2rem !important;
+            font-size: 1.05rem !important;
             font-weight: 800 !important;
             color: #0A2540 !important;
-            margin-bottom: 0.85rem !important;
+            margin-bottom: 0.65rem !important;
         }
         h4, h5 {
-            font-size: 1.05rem !important;
+            font-size: 0.95rem !important;
             font-weight: 700 !important;
             color: #0A2540 !important;
-            margin-bottom: 0.6rem !important;
+            margin-bottom: 0.45rem !important;
         }
 
         /* 3. NÚT ĐÓNG / MỞ SIDEBAR LUÔN HIỂN THỊ RÕ */
         [data-testid="stSidebarHeader"] {
             display: flex !important;
             justify-content: flex-end !important;
-            padding: 0.5rem 0.75rem 0 0.75rem !important;
+            padding: 0.4rem 0.6rem 0 0.6rem !important;
         }
         [data-testid="stSidebarCollapseButton"] button,
         [data-testid="collapsedControl"] button,
@@ -99,9 +105,9 @@ def inject_custom_css():
             color: #2E7D32 !important;
             border: 1.5px solid #66BB6A !important;
             border-radius: 8px !important;
-            box-shadow: 0 2px 4px rgba(10, 37, 64, 0.08) !important;
-            width: 36px !important;
-            height: 36px !important;
+            box-shadow: 0 1px 3px rgba(10, 37, 64, 0.08) !important;
+            width: 34px !important;
+            height: 34px !important;
         }
         [data-testid="stSidebarCollapseButton"] button:hover,
         [data-testid="collapsedControl"] button:hover,
@@ -116,142 +122,145 @@ def inject_custom_css():
             fill: currentColor !important;
         }
 
-        /* 4. SIDEBAR MENU DỌC NỀN XANH LÁ NHẠT (#E6F4EA) */
+        /* 4. SIDEBAR MENU DỌC (5 NÚT BẤM ĐỀU NHAU 100%, CĂN TRÁI CHUYÊN NGHIỆP) */
         [data-testid="stSidebar"] {
             background-color: #E6F4EA !important;
-            border-right: 2px solid #C8E6C9 !important;
+            border-right: 1.5px solid #C8E6C9 !important;
+            min-width: 250px !important;
+            max-width: 270px !important;
         }
         [data-testid="stSidebar"] > div:first-child {
             background-color: #E6F4EA !important;
         }
         .sidebar-brand {
             background-color: #FFFFFF;
-            padding: 14px 16px;
+            padding: 12px 14px;
             border-radius: 10px;
             border: 1.5px solid #A5D6A7;
             border-left: 5px solid #2E7D32;
-            margin-bottom: 1.2rem;
-            box-shadow: 0 2px 5px rgba(10, 37, 64, 0.04);
+            margin-bottom: 1rem;
+            box-shadow: 0 2px 4px rgba(10, 37, 64, 0.04);
         }
         .sidebar-brand-title {
             color: #0A2540 !important;
-            font-size: 1.15rem;
+            font-size: 1.05rem;
             font-weight: 800;
             letter-spacing: -0.2px;
         }
         .sidebar-brand-sub {
             color: #2E7D32 !important;
-            font-size: 0.82rem;
+            font-size: 0.78rem;
             font-weight: 600;
-            margin-top: 3px;
+            margin-top: 2px;
         }
         .sidebar-section-label {
             color: #0A2540 !important;
-            font-size: 0.78rem;
+            font-size: 0.74rem;
             font-weight: 800;
             text-transform: uppercase;
-            letter-spacing: 0.05em;
+            letter-spacing: 0.06em;
             padding: 0 4px;
-            margin-bottom: 8px;
+            margin-bottom: 6px;
         }
 
-        /* Biến st.radio thành nút kéo dài 100% đều nhau */
-        [data-testid="stSidebar"] .stRadio > label {
-            display: none !important;
-        }
-        [data-testid="stSidebar"] [role="radiogroup"] {
-            gap: 8px !important;
+        /* Định dạng 5 nút menu trong Sidebar đều nhau 100% từ trên xuống */
+        [data-testid="stSidebar"] .stButton {
             width: 100% !important;
-            align-items: stretch !important;
+            margin-bottom: 2px !important;
         }
-        [data-testid="stSidebar"] [role="radiogroup"] label {
-            background-color: #FFFFFF !important;
-            padding: 11px 14px !important;
-            border-radius: 10px !important;
-            border: 1.5px solid #C8E6C9 !important;
-            transition: all 0.15s ease !important;
-            cursor: pointer !important;
-            margin: 0 !important;
+        [data-testid="stSidebar"] .stButton > button {
             width: 100% !important;
-            display: flex !important;
-            align-items: center !important;
-            box-sizing: border-box !important;
-            box-shadow: 0 1px 3px rgba(10, 37, 64, 0.03) !important;
-        }
-        /* Ẩn triệt để chấm tròn mặc định (radio circle) */
-        [data-testid="stSidebar"] [role="radiogroup"] label > div:first-of-type {
-            display: none !important;
-        }
-        [data-testid="stSidebar"] [role="radiogroup"] label p,
-        [data-testid="stSidebar"] [role="radiogroup"] label span,
-        [data-testid="stSidebar"] [role="radiogroup"] label div {
-            color: #0A2540 !important;
-            font-size: 0.92rem !important;
+            min-height: 44px !important;
+            height: 44px !important;
+            justify-content: flex-start !important;
+            text-align: left !important;
+            padding: 0 14px !important;
+            border-radius: 9px !important;
+            font-size: 0.88rem !important;
             font-weight: 700 !important;
-            margin: 0 !important;
-            width: 100% !important;
+            box-shadow: 0 1px 2px rgba(10, 37, 64, 0.04) !important;
+            transition: all 0.15s ease !important;
         }
-        [data-testid="stSidebar"] [role="radiogroup"] label:hover {
+        [data-testid="stSidebar"] .stButton > button > div {
+            justify-content: flex-start !important;
+            width: 100% !important;
+            gap: 8px !important;
+        }
+        /* Nút menu chưa chọn (Secondary) */
+        [data-testid="stSidebar"] .stButton > button[kind="secondary"] {
+            background-color: #FFFFFF !important;
+            color: #0A2540 !important;
+            border: 1.5px solid #C8E6C9 !important;
+        }
+        [data-testid="stSidebar"] .stButton > button[kind="secondary"] p,
+        [data-testid="stSidebar"] .stButton > button[kind="secondary"] span {
+            color: #0A2540 !important;
+            font-weight: 700 !important;
+            font-size: 0.88rem !important;
+        }
+        [data-testid="stSidebar"] .stButton > button[kind="secondary"]:hover {
             background-color: #D7F0DD !important;
             border-color: #66BB6A !important;
         }
-        [data-testid="stSidebar"] [role="radiogroup"] label:has(input:checked) {
+        /* Nút menu đang chọn (Primary) */
+        [data-testid="stSidebar"] .stButton > button[kind="primary"] {
             background: linear-gradient(135deg, #2E7D32 0%, #388E3C 100%) !important;
-            border-color: #1B5E20 !important;
-            box-shadow: 0 3px 8px rgba(46, 125, 50, 0.25) !important;
+            color: #FFFFFF !important;
+            border: 1.5px solid #1B5E20 !important;
+            box-shadow: 0 3px 6px rgba(46, 125, 50, 0.22) !important;
         }
-        [data-testid="stSidebar"] [role="radiogroup"] label:has(input:checked) p,
-        [data-testid="stSidebar"] [role="radiogroup"] label:has(input:checked) span,
-        [data-testid="stSidebar"] [role="radiogroup"] label:has(input:checked) div {
+        [data-testid="stSidebar"] .stButton > button[kind="primary"] p,
+        [data-testid="stSidebar"] .stButton > button[kind="primary"] span {
             color: #FFFFFF !important;
             font-weight: 800 !important;
+            font-size: 0.88rem !important;
         }
 
-        /* 5. BANNER ĐẦU TRANG */
+        /* 5. BANNER ĐẦU TRANG GỌN GÀNG */
         .page-banner {
             background: linear-gradient(90deg, #E6F4EA 0%, #FFFFFF 100%);
             border: 1.5px solid #A5D6A7;
-            border-left: 6px solid #2E7D32;
-            border-radius: 12px;
-            padding: 16px 22px;
-            margin-bottom: 22px;
-            box-shadow: 0 2px 6px rgba(10, 37, 64, 0.04);
+            border-left: 5px solid #2E7D32;
+            border-radius: 10px;
+            padding: 12px 18px;
+            margin-bottom: 16px;
+            box-shadow: 0 1px 4px rgba(10, 37, 64, 0.03);
         }
         .page-banner-title {
             color: #0A2540;
-            font-size: 1.35rem;
+            font-size: 1.15rem;
             font-weight: 800;
-            margin: 0 0 4px 0;
+            margin: 0 0 2px 0;
         }
         .page-banner-desc {
             color: #1E3A5F;
-            font-size: 0.9rem;
+            font-size: 0.84rem;
             font-weight: 500;
             margin: 0;
         }
 
-        /* 6. KHỐI CARD TRẮNG & EXPANDER */
+        /* 6. KHỐI CARD TRẮNG & EXPANDER VỪA VẶN */
         [data-testid="stVerticalBlockBorderWrapper"] {
             background-color: #FFFFFF !important;
             border: 1.5px solid #C8E6C9 !important;
-            border-radius: 12px !important;
-            box-shadow: 0 2px 8px rgba(10, 37, 64, 0.04) !important;
-            padding: 1.15rem !important;
-            margin-bottom: 1rem !important;
+            border-radius: 10px !important;
+            box-shadow: 0 1px 5px rgba(10, 37, 64, 0.03) !important;
+            padding: 0.85rem 1rem !important;
+            margin-bottom: 0.75rem !important;
         }
 
         [data-testid="stExpander"] {
             background-color: #FFFFFF !important;
-            border: 1.5px solid #A5D6A7 !important;
-            border-radius: 10px !important;
-            margin-bottom: 10px !important;
-            box-shadow: 0 1px 4px rgba(10, 37, 64, 0.03) !important;
+            border: 1px solid #A5D6A7 !important;
+            border-radius: 8px !important;
+            margin-bottom: 8px !important;
+            box-shadow: none !important;
             overflow: hidden;
         }
         [data-testid="stExpander"] summary {
             background-color: #EAF7ED !important;
-            padding: 12px 16px !important;
-            border-radius: 8px !important;
+            padding: 8px 12px !important;
+            border-radius: 7px !important;
             transition: background-color 0.15s ease;
         }
         [data-testid="stExpander"] summary:hover {
@@ -260,15 +269,16 @@ def inject_custom_css():
         [data-testid="stExpander"] summary p {
             color: #0A2540 !important;
             font-weight: 700 !important;
-            font-size: 0.96rem !important;
+            font-size: 0.85rem !important;
+            line-height: 1.35 !important;
         }
 
-        /* 7. Ô NHẬP LIỆU & SELECTBOX (ẨN TRIỆT ĐỂ CON TRỎ TRONG SELECTBOX TRÊN MỌI THIẾT BỊ) */
+        /* 7. Ô NHẬP LIỆU & SELECTBOX (KHÓA CON TRỎ NHẤP NHÁY TRONG SELECTBOX) */
         .stSelectbox label p, .stTextInput label p, .stDateInput label p,
         .stNumberInput label p, .stFileUploader label p {
             color: #0A2540 !important;
             font-weight: 700 !important;
-            font-size: 0.92rem !important;
+            font-size: 0.86rem !important;
         }
         div[data-baseweb="select"] > div,
         div[data-baseweb="input"] > div,
@@ -278,6 +288,7 @@ def inject_custom_css():
             border-radius: 8px !important;
             color: #0A2540 !important;
             font-weight: 600 !important;
+            font-size: 0.88rem !important;
         }
         div[data-baseweb="select"] > div:focus-within,
         div[data-baseweb="input"] > div:focus-within {
@@ -299,169 +310,162 @@ def inject_custom_css():
             -webkit-user-select: none !important;
         }
 
-        /* 8. NÚT BẤM (BUTTONS) */
-        .stButton > button[kind="primary"] {
+        /* 8. NÚT BẤM TRONG VÙNG NỘI DUNG CHÍNH */
+        .main .stButton > button[kind="primary"] {
             background: linear-gradient(135deg, #388E3C 0%, #2E7D32 100%) !important;
             color: #FFFFFF !important;
             font-weight: 700 !important;
-            font-size: 0.92rem !important;
+            font-size: 0.88rem !important;
             border: none !important;
             border-radius: 8px !important;
-            padding: 0.55rem 1.2rem !important;
-            box-shadow: 0 3px 6px rgba(46, 125, 50, 0.22) !important;
+            padding: 0.5rem 1.1rem !important;
+            box-shadow: 0 2px 5px rgba(46, 125, 50, 0.2) !important;
         }
-        .stButton > button[kind="primary"] p {
+        .main .stButton > button[kind="primary"] p {
             color: #FFFFFF !important;
             font-weight: 700 !important;
         }
-        .stButton > button[kind="primary"]:hover {
-            background: linear-gradient(135deg, #2E7D32 0%, #1B5E20 100%) !important;
-        }
-
-        .stButton > button[kind="secondary"], .stDownloadButton > button {
+        .main .stButton > button[kind="secondary"], .stDownloadButton > button {
             background-color: #E8F5E9 !important;
             color: #0A2540 !important;
             font-weight: 700 !important;
-            font-size: 0.9rem !important;
+            font-size: 0.86rem !important;
             border: 1.5px solid #81C784 !important;
             border-radius: 8px !important;
-            padding: 0.5rem 1rem !important;
+            padding: 0.45rem 0.9rem !important;
         }
-        .stButton > button[kind="secondary"] p, .stDownloadButton > button p {
+        .main .stButton > button[kind="secondary"] p, .stDownloadButton > button p {
             color: #0A2540 !important;
             font-weight: 700 !important;
-        }
-        .stButton > button[kind="secondary"]:hover, .stDownloadButton > button:hover {
-            background-color: #C8E6C9 !important;
-            border-color: #2E7D32 !important;
         }
 
         /* 9. METRICS HIỂN THỊ SỐ LIỆU */
         [data-testid="stMetric"] {
             background-color: #F1F8F3 !important;
-            border: 1.5px solid #C8E6C9 !important;
-            border-radius: 10px !important;
-            padding: 10px 14px !important;
+            border: 1px solid #C8E6C9 !important;
+            border-radius: 8px !important;
+            padding: 8px 12px !important;
         }
         [data-testid="stMetricLabel"] p {
             color: #1B4F72 !important;
             font-weight: 700 !important;
-            font-size: 0.85rem !important;
+            font-size: 0.8rem !important;
         }
         [data-testid="stMetricValue"] {
             color: #0A2540 !important;
             font-family: 'JetBrains Mono', monospace !important;
             font-weight: 800 !important;
-            font-size: 1.3rem !important;
+            font-size: 1.15rem !important;
         }
 
         /* 10. NHÃN TRẠNG THÁI (BADGES) & KHỐI KẾT QUẢ */
         .status-badge {
             display: inline-flex;
             align-items: center;
-            gap: 4px;
-            padding: 3px 12px;
+            gap: 3px;
+            padding: 2px 9px;
             border-radius: 999px;
-            font-size: 0.82rem;
+            font-size: 0.76rem;
             font-weight: 700;
-            line-height: 1.4;
+            line-height: 1.3;
             white-space: nowrap;
         }
         .badge-pass {
             background-color: #DCFCE7;
             color: #15803D;
-            border: 1.5px solid #86EFAC;
+            border: 1px solid #86EFAC;
         }
         .badge-fail {
             background-color: #FEE2E2;
             color: #B91C1C;
-            border: 1.5px solid #FCA5A5;
+            border: 1px solid #FCA5A5;
         }
         .badge-warn {
             background-color: #FEF3C7;
             color: #B45309;
-            border: 1.5px solid #FDE68A;
+            border: 1px solid #FDE68A;
         }
 
         .eval-result-box {
             background-color: #FFFFFF;
             border: 1.5px solid #C8E6C9;
             border-radius: 8px;
-            padding: 10px 14px;
-            margin-top: 10px;
+            padding: 8px 12px;
+            margin-top: 8px;
             display: flex;
             align-items: center;
             justify-content: space-between;
-            font-size: 0.92rem;
+            font-size: 0.86rem;
             color: #0A2540;
         }
         .eval-result-pass {
-            border-left: 5px solid #2E7D32;
+            border-left: 4px solid #2E7D32;
             background-color: #F4FBF6;
         }
         .eval-result-fail {
-            border-left: 5px solid #C62828;
+            border-left: 4px solid #C62828;
             background-color: #FEF2F2;
         }
 
-        /* 11. LỊCH SỬ & BẢNG DỮ LIỆU */
+        /* 11. LỊCH SỬ & BẢNG DỮ LIỆU GỌN GÀNG, KHÔNG BỊ CẮT CHỮ */
         .month-header-banner {
             background: linear-gradient(90deg, #DDF2E1 0%, #F1F8F3 100%);
             color: #0A2540;
-            padding: 10px 18px;
+            padding: 8px 14px;
             border: 1px solid #A5D6A7;
-            border-left: 6px solid #2E7D32;
+            border-left: 5px solid #2E7D32;
             border-radius: 8px;
             font-weight: 800;
-            font-size: 1.05rem;
-            margin-top: 18px;
-            margin-bottom: 12px;
+            font-size: 0.95rem;
+            margin-top: 14px;
+            margin-bottom: 10px;
         }
         .history-meta-bar {
             background-color: #F4FBF6;
-            border: 1.5px solid #B9E2C2;
+            border: 1px solid #B9E2C2;
             border-radius: 8px;
-            padding: 10px 16px;
-            margin-bottom: 12px;
+            padding: 8px 12px;
+            margin-bottom: 10px;
             display: flex;
             flex-wrap: wrap;
-            gap: 18px;
+            gap: 14px;
             align-items: center;
             color: #0A2540;
-            font-size: 0.94rem;
+            font-size: 0.85rem;
         }
         .date-pill {
             background-color: #2E7D32;
             color: #FFFFFF;
-            padding: 4px 12px;
-            border-radius: 6px;
+            padding: 2px 9px;
+            border-radius: 5px;
             font-family: 'JetBrains Mono', monospace;
             font-weight: 700;
-            font-size: 0.9rem;
+            font-size: 0.82rem;
         }
         .lot-pill {
             background-color: #E3F2FD;
             color: #0A2540;
             border: 1px solid #90CAF9;
-            padding: 3px 10px;
-            border-radius: 6px;
+            padding: 2px 9px;
+            border-radius: 5px;
             font-family: 'JetBrains Mono', monospace;
             font-weight: 700;
-            font-size: 0.9rem;
+            font-size: 0.82rem;
         }
 
         .lab-table-wrapper {
-            max-height: 380px;
+            max-height: 320px;
+            overflow-x: auto;
             overflow-y: auto;
-            border: 1.5px solid #C8E6C9;
-            border-radius: 8px;
+            border: 1px solid #C8E6C9;
+            border-radius: 7px;
             background-color: #FFFFFF;
-            margin-bottom: 8px;
+            margin-bottom: 4px;
         }
         .lab-table {
             width: 100%;
             border-collapse: collapse;
-            font-size: 0.9rem;
+            font-size: 0.82rem;
             color: #0A2540;
         }
         .lab-table thead th {
@@ -469,16 +473,18 @@ def inject_custom_css():
             top: 0;
             background-color: #E6F4EA;
             color: #0A2540;
-            font-weight: 800;
-            padding: 10px 12px;
-            border-bottom: 2px solid #A5D6A7;
+            font-weight: 700;
+            padding: 7px 10px;
+            border-bottom: 1.5px solid #A5D6A7;
+            white-space: nowrap;
             z-index: 1;
         }
         .lab-table tbody td {
-            padding: 9px 12px;
+            padding: 6px 10px;
             border-bottom: 1px solid #E8F5E9;
             font-variant-numeric: tabular-nums;
             font-weight: 500;
+            white-space: nowrap;
         }
         .lab-table tbody tr:nth-child(even) {
             background-color: #F9FBF9;
@@ -487,7 +493,7 @@ def inject_custom_css():
             background-color: #E8F5E9;
         }
         .text-left { text-align: left !important; }
-        .text-right { text-align: right !important; font-family: 'JetBrains Mono', monospace; }
+        .text-right { text-align: right !important; font-family: 'JetBrains Mono', monospace; font-size: 0.8rem; }
         .text-center { text-align: center !important; }
     </style>
     """)
@@ -518,23 +524,18 @@ all_setups = load_all_setups()
 hist_df_master = load_stage2_history()
 
 # ==============================================================================
-# THANH MENU DỌC BÊN TRÁI ĐÃ SỬA SANG TIẾNG ANH (SIDEBAR)
+# THANH MENU DỌC BÊN TRÁI (5 NÚT BẤM TIẾNG ANH ĐỀU NHAU 100%)
 # ==============================================================================
 MENU_ITEMS = [
-    "1. Stage 2 Evaluation",
-    "2. Evaluation History",
-    "3. LOT Dashboard",
-    "4. Stage 1 Configuration",
-    "5. Saved Configurations"
+    ("1. Lot Evaluation", ":material/science:"),
+    ("2. Evaluation History", ":material/history:"),
+    ("3. Lot Overview", ":material/dashboard:"),
+    ("4. Parameter Setup", ":material/tune:"),
+    ("5. Test Directory", ":material/folder_managed:")
 ]
 
-MENU_ICONS = {
-    "1. Stage 2 Evaluation": ":material/science:  1. Stage 2 Evaluation",
-    "2. Evaluation History": ":material/history:  2. Evaluation History",
-    "3. LOT Dashboard": ":material/dashboard:  3. LOT Dashboard",
-    "4. Stage 1 Configuration": ":material/tune:  4. Stage 1 Configuration",
-    "5. Saved Configurations": ":material/folder_managed:  5. Saved Configurations"
-}
+if "active_menu_page" not in st.session_state:
+    st.session_state["active_menu_page"] = "1. Lot Evaluation"
 
 with st.sidebar:
     render_html("""
@@ -545,12 +546,18 @@ with st.sidebar:
     <div class="sidebar-section-label">MAIN MENU</div>
     """)
 
-    page = st.radio(
-        "Navigation",
-        options=MENU_ITEMS,
-        format_func=lambda x: MENU_ICONS.get(x, x),
-        label_visibility="collapsed"
-    )
+    for item_label, item_icon in MENU_ITEMS:
+        is_active = (st.session_state["active_menu_page"] == item_label)
+        if st.button(
+            f"{item_icon}  {item_label}",
+            key=f"nav_btn_{item_label}",
+            type="primary" if is_active else "secondary",
+            use_container_width=True
+        ):
+            st.session_state["active_menu_page"] = item_label
+            st.rerun()
+
+page = st.session_state["active_menu_page"]
 
 
 def convert_docx_to_pdf_bytes(docx_bytes):
@@ -577,9 +584,9 @@ def convert_docx_to_pdf_bytes(docx_bytes):
 
 
 # ==============================================================================
-# TRANG 1: GIAI ĐOẠN 2 - ĐÁNH GIÁ MẪU HẰNG NGÀY
+# TRANG 1: GIAI ĐOẠN 2 - ĐÁNH GIÁ MẪU HẰNG NGÀY (1. Lot Evaluation)
 # ==============================================================================
-if page == "1. Stage 2 Evaluation":
+if page == "1. Lot Evaluation":
     render_page_banner(
         "Đánh giá Mẫu thực tế (Stage 2)",
         "Nhập kết quả chạy mẫu song song trên lô hóa chất cũ và mới để kiểm tra độ tương đồng theo tiêu chuẩn CLSI EP26-Ed2."
@@ -587,7 +594,7 @@ if page == "1. Stage 2 Evaluation":
 
     active_setups = all_setups[all_setups["is_selected"] == 1] if not all_setups.empty else pd.DataFrame()
     if active_setups.empty:
-        st.warning("Chưa có cấu hình xét nghiệm nào. Vui lòng chọn mục **4. Stage 1 Configuration** ở thanh menu bên trái để thiết lập thông số ban đầu!", icon=":material/warning:")
+        st.warning("Chưa có cấu hình xét nghiệm nào. Vui lòng chọn mục **4. Parameter Setup** ở thanh menu bên trái để thiết lập thông số ban đầu!", icon=":material/warning:")
     else:
         with st.container(border=True):
             st.markdown("#### :material/assignment: Thông tin đợt đánh giá")
@@ -699,7 +706,7 @@ if page == "1. Stage 2 Evaluation":
 
 
 # ==============================================================================
-# TRANG 2: LỊCH SỬ ĐÁNH GIÁ & XÁC NHẬN XÓA & THÙNG RÁC
+# TRANG 2: LỊCH SỬ ĐÁNH GIÁ & XÁC NHẬN XÓA & THÙNG RÁC (2. Evaluation History)
 # ==============================================================================
 elif page == "2. Evaluation History":
     render_page_banner(
@@ -737,9 +744,9 @@ elif page == "2. Evaluation History":
                 unit = first_row['unit']
 
                 overall_pass = all(str(r['status']).upper() == 'PASS' for _, r in group.iterrows())
-                status_text = "🟢 ĐẠT" if overall_pass else "🔴 KHÔNG ĐẠT"
-                reagent_str = f"  •  Hóa chất: {reagent}" if reagent else ""
-                expander_label = f":material/event: [{display_date_str}]  —  {t_name} ({mach}){reagent_str}  •  LOT: {l_old} ➔ {l_new}  [{status_text}]"
+                status_text = "🟢 Đạt" if overall_pass else "🔴 Không đạt"
+                reagent_str = f" • Hóa chất: {reagent}" if reagent else ""
+                expander_label = f":material/event: [{display_date_str}] — {t_name} ({mach}){reagent_str} • LOT: {l_old} ➔ {l_new} [{status_text}]"
 
                 with st.expander(expander_label, expanded=False):
                     reagent_meta = f'<div><strong>Hóa chất:</strong> {reagent}</div>' if reagent else ''
@@ -889,11 +896,11 @@ elif page == "2. Evaluation History":
 
 
 # ==============================================================================
-# TRANG 3: TỔNG QUAN LOT (DASHBOARD)
+# TRANG 3: TỔNG QUAN LOT - GỌN GÀNG, VỪA KHUNG (3. Lot Overview)
 # ==============================================================================
-elif page == "3. LOT Dashboard":
+elif page == "3. Lot Overview":
     render_page_banner(
-        "Tổng quan LOT (Dashboard)",
+        "Tổng quan LOT (Lot Overview)",
         "Bảng điều khiển hiện trạng hóa chất và lịch sử thay đổi số LOT trên từng thiết bị phân tích."
     )
 
@@ -911,7 +918,7 @@ elif page == "3. LOT Dashboard":
         df_sh = df_unique_evals[df_unique_evals['reagent_name'] == '']
         df_hh = df_unique_evals[df_unique_evals['reagent_name'] != '']
 
-        col_sh, col_hh = st.columns(2, gap="large")
+        col_sh, col_hh = st.columns(2, gap="medium")
 
         def render_dashboard_section(df_section, title, icon, group_by_col):
             st.markdown(f"### {icon} {title}")
@@ -925,8 +932,8 @@ elif page == "3. LOT Dashboard":
                         latest_eval = group.iloc[0]
                         latest_status_str = "🟢 Đạt" if str(latest_eval['status']).upper() == "PASS" else "🔴 Không đạt"
                         expander_title = (
-                            f":material/vaccines: {item_name}  |  LOT đang dùng: {latest_eval['lot_new']}  "
-                            f"(Cập nhật: {latest_eval['eval_date_obj'].strftime('%d/%m/%Y')})  [{latest_status_str}]"
+                            f":material/vaccines: {item_name} | LOT: {latest_eval['lot_new']} "
+                            f"({latest_eval['eval_date_obj'].strftime('%d/%m/%Y')}) [{latest_status_str}]"
                         )
                         with st.expander(expander_title):
                             dash_rows_html = []
@@ -966,9 +973,9 @@ elif page == "3. LOT Dashboard":
 
 
 # ==============================================================================
-# TRANG 4: GIAI ĐOẠN 1 - SETUP THÔNG SỐ
+# TRANG 4: GIAI ĐOẠN 1 - SETUP THÔNG SỐ (4. Parameter Setup)
 # ==============================================================================
-elif page == "4. Stage 1 Configuration":
+elif page == "4. Parameter Setup":
     render_page_banner(
         "Cấu hình Thông số (Stage 1)",
         "Thiết lập nồng độ đích, TEa%, Swrl% và Sr% để hệ thống tra bảng tính số lượng mẫu (n), lực thống kê (Power) và giới hạn từ chối (RL)."
@@ -1110,9 +1117,9 @@ elif page == "4. Stage 1 Configuration":
 
 
 # ==============================================================================
-# TRANG 5: DANH MỤC CẤU HÌNH ĐÃ LƯU
+# TRANG 5: DANH MỤC CẤU HÌNH ĐÃ LƯU (5. Test Directory)
 # ==============================================================================
-elif page == "5. Saved Configurations":
+elif page == "5. Test Directory":
     render_page_banner(
         "Danh mục Xét nghiệm đã lưu",
         "Quản lý toàn bộ thông số cấu hình Stage 1 hiện có trong cơ sở dữ liệu và hỗ trợ khôi phục dữ liệu từ file CSV/Excel."
