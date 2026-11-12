@@ -155,12 +155,14 @@ def inject_custom_css():
             margin-bottom: 8px;
         }
 
-        /* Biến st.radio trong Sidebar thành nút thẻ, ẩn chấm tròn trên mọi phiên bản Streamlit */
+        /* Biến st.radio thành nút kéo dài 100% đều nhau */
         [data-testid="stSidebar"] .stRadio > label {
             display: none !important;
         }
         [data-testid="stSidebar"] [role="radiogroup"] {
             gap: 8px !important;
+            width: 100% !important;
+            align-items: stretch !important;
         }
         [data-testid="stSidebar"] [role="radiogroup"] label {
             background-color: #FFFFFF !important;
@@ -171,12 +173,13 @@ def inject_custom_css():
             cursor: pointer !important;
             margin: 0 !important;
             width: 100% !important;
+            display: flex !important;
+            align-items: center !important;
+            box-sizing: border-box !important;
             box-shadow: 0 1px 3px rgba(10, 37, 64, 0.03) !important;
         }
-        [data-testid="stSidebar"] [role="radiogroup"] label > div:first-child {
-            display: none !important;
-        }
-        [data-testid="stSidebar"] [role="radiogroup"] label input {
+        /* Ẩn triệt để chấm tròn mặc định (radio circle) */
+        [data-testid="stSidebar"] [role="radiogroup"] label > div:first-of-type {
             display: none !important;
         }
         [data-testid="stSidebar"] [role="radiogroup"] label p,
@@ -186,6 +189,7 @@ def inject_custom_css():
             font-size: 0.92rem !important;
             font-weight: 700 !important;
             margin: 0 !important;
+            width: 100% !important;
         }
         [data-testid="stSidebar"] [role="radiogroup"] label:hover {
             background-color: #D7F0DD !important;
@@ -281,7 +285,6 @@ def inject_custom_css():
             box-shadow: 0 0 0 1px #2E7D32 !important;
         }
 
-        /* Khóa hoàn toàn con trỏ soạn thảo (|) trong mọi ô Selectbox trên cả PC và Điện thoại */
         div[data-baseweb="select"],
         div[data-baseweb="select"] * {
             cursor: pointer !important;
@@ -515,35 +518,35 @@ all_setups = load_all_setups()
 hist_df_master = load_stage2_history()
 
 # ==============================================================================
-# THANH MENU DỌC BÊN TRÁI (SIDEBAR)
+# THANH MENU DỌC BÊN TRÁI ĐÃ SỬA SANG TIẾNG ANH (SIDEBAR)
 # ==============================================================================
 MENU_ITEMS = [
-    "1. Đánh giá Mẫu thực tế (Stage 2)",
-    "2. Lịch sử Đánh giá",
-    "3. Tổng quan LOT (Dashboard)",
-    "4. Cấu hình Thông số (Stage 1)",
-    "5. Danh mục XN đã lưu"
+    "1. Stage 2 Evaluation",
+    "2. Evaluation History",
+    "3. LOT Dashboard",
+    "4. Stage 1 Configuration",
+    "5. Saved Configurations"
 ]
 
 MENU_ICONS = {
-    "1. Đánh giá Mẫu thực tế (Stage 2)": ":material/science:  1. Đánh giá Mẫu thực tế (Stage 2)",
-    "2. Lịch sử Đánh giá": ":material/history:  2. Lịch sử Đánh giá",
-    "3. Tổng quan LOT (Dashboard)": ":material/dashboard:  3. Tổng quan LOT (Dashboard)",
-    "4. Cấu hình Thông số (Stage 1)": ":material/tune:  4. Cấu hình Thông số (Stage 1)",
-    "5. Danh mục XN đã lưu": ":material/folder_managed:  5. Danh mục XN đã lưu"
+    "1. Stage 2 Evaluation": ":material/science:  1. Stage 2 Evaluation",
+    "2. Evaluation History": ":material/history:  2. Evaluation History",
+    "3. LOT Dashboard": ":material/dashboard:  3. LOT Dashboard",
+    "4. Stage 1 Configuration": ":material/tune:  4. Stage 1 Configuration",
+    "5. Saved Configurations": ":material/folder_managed:  5. Saved Configurations"
 }
 
 with st.sidebar:
     render_html("""
     <div class="sidebar-brand">
         <div class="sidebar-brand-title">🔬 CLSI EP26-Ed2</div>
-        <div class="sidebar-brand-sub">Hệ thống Đánh giá Lot-to-Lot</div>
+        <div class="sidebar-brand-sub">Lot-to-Lot Evaluation System</div>
     </div>
-    <div class="sidebar-section-label">Danh mục chức năng</div>
+    <div class="sidebar-section-label">MAIN MENU</div>
     """)
 
     page = st.radio(
-        "Điều hướng",
+        "Navigation",
         options=MENU_ITEMS,
         format_func=lambda x: MENU_ICONS.get(x, x),
         label_visibility="collapsed"
@@ -576,7 +579,7 @@ def convert_docx_to_pdf_bytes(docx_bytes):
 # ==============================================================================
 # TRANG 1: GIAI ĐOẠN 2 - ĐÁNH GIÁ MẪU HẰNG NGÀY
 # ==============================================================================
-if page == "1. Đánh giá Mẫu thực tế (Stage 2)":
+if page == "1. Stage 2 Evaluation":
     render_page_banner(
         "Đánh giá Mẫu thực tế (Stage 2)",
         "Nhập kết quả chạy mẫu song song trên lô hóa chất cũ và mới để kiểm tra độ tương đồng theo tiêu chuẩn CLSI EP26-Ed2."
@@ -584,7 +587,7 @@ if page == "1. Đánh giá Mẫu thực tế (Stage 2)":
 
     active_setups = all_setups[all_setups["is_selected"] == 1] if not all_setups.empty else pd.DataFrame()
     if active_setups.empty:
-        st.warning("Chưa có cấu hình xét nghiệm nào. Vui lòng chọn mục **4. Cấu hình Thông số (Stage 1)** ở thanh menu bên trái để thiết lập thông số ban đầu!", icon=":material/warning:")
+        st.warning("Chưa có cấu hình xét nghiệm nào. Vui lòng chọn mục **4. Stage 1 Configuration** ở thanh menu bên trái để thiết lập thông số ban đầu!", icon=":material/warning:")
     else:
         with st.container(border=True):
             st.markdown("#### :material/assignment: Thông tin đợt đánh giá")
@@ -690,7 +693,7 @@ if page == "1. Đánh giá Mẫu thực tế (Stage 2)":
             st.write("")
             if st.button(":material/save: Lưu kết quả vào lịch sử", type="primary", use_container_width=True):
                 save_stage2_evaluation(flat_records_to_save)
-                st.success("Đã lưu biên bản đánh giá! Vui lòng chọn mục **2. Lịch sử Đánh giá** ở thanh menu bên trái để xuất file Word/PDF.", icon=":material/check_circle:")
+                st.success("Đã lưu biên bản đánh giá! Vui lòng chọn mục **2. Evaluation History** ở thanh menu bên trái để xuất file Word/PDF.", icon=":material/check_circle:")
                 time.sleep(0.5)
                 st.rerun()
 
@@ -698,7 +701,7 @@ if page == "1. Đánh giá Mẫu thực tế (Stage 2)":
 # ==============================================================================
 # TRANG 2: LỊCH SỬ ĐÁNH GIÁ & XÁC NHẬN XÓA & THÙNG RÁC
 # ==============================================================================
-elif page == "2. Lịch sử Đánh giá":
+elif page == "2. Evaluation History":
     render_page_banner(
         "Lịch sử Đánh giá Mẫu thực tế",
         "Tra cứu hồ sơ đánh giá Lot-to-Lot theo từng tháng, xuất biên bản báo cáo Word/PDF và khôi phục các bản ghi đã xóa."
@@ -888,7 +891,7 @@ elif page == "2. Lịch sử Đánh giá":
 # ==============================================================================
 # TRANG 3: TỔNG QUAN LOT (DASHBOARD)
 # ==============================================================================
-elif page == "3. Tổng quan LOT (Dashboard)":
+elif page == "3. LOT Dashboard":
     render_page_banner(
         "Tổng quan LOT (Dashboard)",
         "Bảng điều khiển hiện trạng hóa chất và lịch sử thay đổi số LOT trên từng thiết bị phân tích."
@@ -965,7 +968,7 @@ elif page == "3. Tổng quan LOT (Dashboard)":
 # ==============================================================================
 # TRANG 4: GIAI ĐOẠN 1 - SETUP THÔNG SỐ
 # ==============================================================================
-elif page == "4. Cấu hình Thông số (Stage 1)":
+elif page == "4. Stage 1 Configuration":
     render_page_banner(
         "Cấu hình Thông số (Stage 1)",
         "Thiết lập nồng độ đích, TEa%, Swrl% và Sr% để hệ thống tra bảng tính số lượng mẫu (n), lực thống kê (Power) và giới hạn từ chối (RL)."
@@ -1109,7 +1112,7 @@ elif page == "4. Cấu hình Thông số (Stage 1)":
 # ==============================================================================
 # TRANG 5: DANH MỤC CẤU HÌNH ĐÃ LƯU
 # ==============================================================================
-elif page == "5. Danh mục XN đã lưu":
+elif page == "5. Saved Configurations":
     render_page_banner(
         "Danh mục Xét nghiệm đã lưu",
         "Quản lý toàn bộ thông số cấu hình Stage 1 hiện có trong cơ sở dữ liệu và hỗ trợ khôi phục dữ liệu từ file CSV/Excel."
