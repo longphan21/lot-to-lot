@@ -52,10 +52,10 @@ def inject_custom_css():
         }
 
         .block-container {
-            padding-top: 1.2rem !important;
+            padding-top: 1.1rem !important;
             padding-bottom: 2rem !important;
-            padding-left: 1.8rem !important;
-            padding-right: 1.8rem !important;
+            padding-left: 1.6rem !important;
+            padding-right: 1.6rem !important;
             max-width: 100% !important;
         }
 
@@ -63,13 +63,13 @@ def inject_custom_css():
             font-variant-numeric: tabular-nums !important;
         }
 
-        /* Ẩn icon mắt xích (anchor link) cạnh các tiêu đề */
+        /* Ẩn icon mắt xích cạnh tiêu đề */
         [data-testid="stHeaderActionElements"],
         h1 a, h2 a, h3 a, h4 a, h5 a, h6 a {
             display: none !important;
         }
 
-        /* 2. TIÊU ĐỀ GỌN GÀNG, VỪA VẶN */
+        /* 2. TIÊU ĐỀ GỌN GÀNG, CỠ CHỮ VỪA VẶN */
         h1, h2, h3, h4, h5, h6 {
             color: #0A2540 !important;
             font-family: 'Be Vietnam Pro', sans-serif !important;
@@ -78,16 +78,16 @@ def inject_custom_css():
             margin-top: 0 !important;
         }
         h3 {
-            font-size: 1.05rem !important;
+            font-size: 0.98rem !important;
             font-weight: 800 !important;
             color: #0A2540 !important;
-            margin-bottom: 0.65rem !important;
+            margin-bottom: 0.55rem !important;
         }
         h4, h5 {
-            font-size: 0.95rem !important;
+            font-size: 0.9rem !important;
             font-weight: 700 !important;
             color: #0A2540 !important;
-            margin-bottom: 0.45rem !important;
+            margin-bottom: 0.4rem !important;
         }
 
         /* 3. NÚT ĐÓNG / MỞ SIDEBAR LUÔN HIỂN THỊ RÕ */
@@ -122,40 +122,40 @@ def inject_custom_css():
             fill: currentColor !important;
         }
 
-        /* 4. SIDEBAR MENU DỌC (5 NÚT BẤM ĐỀU NHAU 100%, CĂN TRÁI CHUYÊN NGHIỆP) */
+        /* 4. SIDEBAR MENU DỌC (5 NÚT TIẾNG ANH ĐỀU NHAU 100%) */
         [data-testid="stSidebar"] {
             background-color: #E6F4EA !important;
             border-right: 1.5px solid #C8E6C9 !important;
-            min-width: 250px !important;
-            max-width: 270px !important;
+            min-width: 245px !important;
+            max-width: 265px !important;
         }
         [data-testid="stSidebar"] > div:first-child {
             background-color: #E6F4EA !important;
         }
         .sidebar-brand {
             background-color: #FFFFFF;
-            padding: 12px 14px;
+            padding: 11px 14px;
             border-radius: 10px;
             border: 1.5px solid #A5D6A7;
             border-left: 5px solid #2E7D32;
-            margin-bottom: 1rem;
+            margin-bottom: 0.9rem;
             box-shadow: 0 2px 4px rgba(10, 37, 64, 0.04);
         }
         .sidebar-brand-title {
             color: #0A2540 !important;
-            font-size: 1.05rem;
+            font-size: 1.02rem;
             font-weight: 800;
             letter-spacing: -0.2px;
         }
         .sidebar-brand-sub {
             color: #2E7D32 !important;
-            font-size: 0.78rem;
+            font-size: 0.75rem;
             font-weight: 600;
             margin-top: 2px;
         }
         .sidebar-section-label {
             color: #0A2540 !important;
-            font-size: 0.74rem;
+            font-size: 0.72rem;
             font-weight: 800;
             text-transform: uppercase;
             letter-spacing: 0.06em;
@@ -163,20 +163,19 @@ def inject_custom_css():
             margin-bottom: 6px;
         }
 
-        /* Định dạng 5 nút menu trong Sidebar đều nhau 100% từ trên xuống */
         [data-testid="stSidebar"] .stButton {
             width: 100% !important;
             margin-bottom: 2px !important;
         }
         [data-testid="stSidebar"] .stButton > button {
             width: 100% !important;
-            min-height: 44px !important;
-            height: 44px !important;
+            min-height: 42px !important;
+            height: 42px !important;
             justify-content: flex-start !important;
             text-align: left !important;
-            padding: 0 14px !important;
-            border-radius: 9px !important;
-            font-size: 0.88rem !important;
+            padding: 0 13px !important;
+            border-radius: 8px !important;
+            font-size: 0.85rem !important;
             font-weight: 700 !important;
             box-shadow: 0 1px 2px rgba(10, 37, 64, 0.04) !important;
             transition: all 0.15s ease !important;
@@ -186,7 +185,6 @@ def inject_custom_css():
             width: 100% !important;
             gap: 8px !important;
         }
-        /* Nút menu chưa chọn (Secondary) */
         [data-testid="stSidebar"] .stButton > button[kind="secondary"] {
             background-color: #FFFFFF !important;
             color: #0A2540 !important;
@@ -196,13 +194,12 @@ def inject_custom_css():
         [data-testid="stSidebar"] .stButton > button[kind="secondary"] span {
             color: #0A2540 !important;
             font-weight: 700 !important;
-            font-size: 0.88rem !important;
+            font-size: 0.85rem !important;
         }
         [data-testid="stSidebar"] .stButton > button[kind="secondary"]:hover {
             background-color: #D7F0DD !important;
             border-color: #66BB6A !important;
         }
-        /* Nút menu đang chọn (Primary) */
         [data-testid="stSidebar"] .stButton > button[kind="primary"] {
             background: linear-gradient(135deg, #2E7D32 0%, #388E3C 100%) !important;
             color: #FFFFFF !important;
@@ -213,82 +210,88 @@ def inject_custom_css():
         [data-testid="stSidebar"] .stButton > button[kind="primary"] span {
             color: #FFFFFF !important;
             font-weight: 800 !important;
-            font-size: 0.88rem !important;
+            font-size: 0.85rem !important;
         }
 
-        /* 5. BANNER ĐẦU TRANG GỌN GÀNG */
+        /* 5. BANNER ĐẦU TRANG NHỎ GỌN */
         .page-banner {
             background: linear-gradient(90deg, #E6F4EA 0%, #FFFFFF 100%);
-            border: 1.5px solid #A5D6A7;
+            border: 1px solid #A5D6A7;
             border-left: 5px solid #2E7D32;
-            border-radius: 10px;
-            padding: 12px 18px;
-            margin-bottom: 16px;
-            box-shadow: 0 1px 4px rgba(10, 37, 64, 0.03);
+            border-radius: 8px;
+            padding: 10px 16px;
+            margin-bottom: 14px;
+            box-shadow: 0 1px 3px rgba(10, 37, 64, 0.03);
         }
         .page-banner-title {
             color: #0A2540;
-            font-size: 1.15rem;
+            font-size: 1.05rem;
             font-weight: 800;
             margin: 0 0 2px 0;
         }
         .page-banner-desc {
             color: #1E3A5F;
-            font-size: 0.84rem;
+            font-size: 0.8rem;
             font-weight: 500;
             margin: 0;
         }
 
-        /* 6. KHỐI CARD TRẮNG & EXPANDER VỪA VẶN */
+        /* 6. KHỐI CARD TRẮNG & EXPANDER THU NHỎ NHƯ DANH SÁCH MẪU */
         [data-testid="stVerticalBlockBorderWrapper"] {
             background-color: #FFFFFF !important;
-            border: 1.5px solid #C8E6C9 !important;
-            border-radius: 10px !important;
-            box-shadow: 0 1px 5px rgba(10, 37, 64, 0.03) !important;
-            padding: 0.85rem 1rem !important;
-            margin-bottom: 0.75rem !important;
+            border: 1px solid #C8E6C9 !important;
+            border-radius: 8px !important;
+            box-shadow: 0 1px 4px rgba(10, 37, 64, 0.03) !important;
+            padding: 0.75rem 0.95rem !important;
+            margin-bottom: 0.65rem !important;
         }
 
         [data-testid="stExpander"] {
             background-color: #FFFFFF !important;
-            border: 1px solid #A5D6A7 !important;
-            border-radius: 8px !important;
-            margin-bottom: 8px !important;
+            border: 1px solid #CBE6D0 !important;
+            border-radius: 7px !important;
+            margin-bottom: 5px !important;
             box-shadow: none !important;
             overflow: hidden;
         }
         [data-testid="stExpander"] summary {
-            background-color: #EAF7ED !important;
-            padding: 8px 12px !important;
-            border-radius: 7px !important;
-            transition: background-color 0.15s ease;
+            background-color: #FFFFFF !important;
+            padding: 6px 12px !important;
+            border-radius: 6px !important;
+            transition: background-color 0.12s ease;
         }
         [data-testid="stExpander"] summary:hover {
-            background-color: #D7F0DD !important;
+            background-color: #EEF8F0 !important;
         }
         [data-testid="stExpander"] summary p {
             color: #0A2540 !important;
-            font-weight: 700 !important;
-            font-size: 0.85rem !important;
-            line-height: 1.35 !important;
+            font-weight: 600 !important;
+            font-size: 0.80rem !important;
+            line-height: 1.3 !important;
+        }
+        [data-testid="stExpanderDetails"] {
+            padding: 8px 12px 10px 12px !important;
+            border-top: 1px solid #E8F5E9 !important;
+            background-color: #FAFDFB !important;
         }
 
-        /* 7. Ô NHẬP LIỆU & SELECTBOX (KHÓA CON TRỎ NHẤP NHÁY TRONG SELECTBOX) */
+        /* 7. Ô NHẬP LIỆU & SELECTBOX */
         .stSelectbox label p, .stTextInput label p, .stDateInput label p,
         .stNumberInput label p, .stFileUploader label p {
             color: #0A2540 !important;
             font-weight: 700 !important;
-            font-size: 0.86rem !important;
+            font-size: 0.82rem !important;
         }
         div[data-baseweb="select"] > div,
         div[data-baseweb="input"] > div,
         div[data-baseweb="base-input"] {
             background-color: #FFFFFF !important;
-            border: 1.5px solid #A5D6A7 !important;
-            border-radius: 8px !important;
+            border: 1px solid #A5D6A7 !important;
+            border-radius: 7px !important;
             color: #0A2540 !important;
             font-weight: 600 !important;
-            font-size: 0.88rem !important;
+            font-size: 0.83rem !important;
+            min-height: 36px !important;
         }
         div[data-baseweb="select"] > div:focus-within,
         div[data-baseweb="input"] > div:focus-within {
@@ -296,6 +299,7 @@ def inject_custom_css():
             box-shadow: 0 0 0 1px #2E7D32 !important;
         }
 
+        /* Khóa con trỏ soạn thảo trong Selectbox trên mọi thiết bị */
         div[data-baseweb="select"],
         div[data-baseweb="select"] * {
             cursor: pointer !important;
@@ -310,33 +314,36 @@ def inject_custom_css():
             -webkit-user-select: none !important;
         }
 
-        /* 8. NÚT BẤM TRONG VÙNG NỘI DUNG CHÍNH */
+        /* 8. NÚT BẤM TRONG VÙNG NỘI DUNG CHÍNH (NHỎ GỌN) */
         .main .stButton > button[kind="primary"] {
             background: linear-gradient(135deg, #388E3C 0%, #2E7D32 100%) !important;
             color: #FFFFFF !important;
             font-weight: 700 !important;
-            font-size: 0.88rem !important;
+            font-size: 0.82rem !important;
             border: none !important;
-            border-radius: 8px !important;
-            padding: 0.5rem 1.1rem !important;
-            box-shadow: 0 2px 5px rgba(46, 125, 50, 0.2) !important;
+            border-radius: 7px !important;
+            padding: 0.4rem 0.9rem !important;
+            min-height: 34px !important;
         }
         .main .stButton > button[kind="primary"] p {
             color: #FFFFFF !important;
             font-weight: 700 !important;
+            font-size: 0.82rem !important;
         }
         .main .stButton > button[kind="secondary"], .stDownloadButton > button {
             background-color: #E8F5E9 !important;
             color: #0A2540 !important;
-            font-weight: 700 !important;
-            font-size: 0.86rem !important;
-            border: 1.5px solid #81C784 !important;
-            border-radius: 8px !important;
-            padding: 0.45rem 0.9rem !important;
+            font-weight: 600 !important;
+            font-size: 0.80rem !important;
+            border: 1px solid #81C784 !important;
+            border-radius: 7px !important;
+            padding: 0.35rem 0.8rem !important;
+            min-height: 34px !important;
         }
         .main .stButton > button[kind="secondary"] p, .stDownloadButton > button p {
             color: #0A2540 !important;
-            font-weight: 700 !important;
+            font-weight: 600 !important;
+            font-size: 0.80rem !important;
         }
 
         /* 9. METRICS HIỂN THỊ SỐ LIỆU */
@@ -344,30 +351,30 @@ def inject_custom_css():
             background-color: #F1F8F3 !important;
             border: 1px solid #C8E6C9 !important;
             border-radius: 8px !important;
-            padding: 8px 12px !important;
+            padding: 7px 10px !important;
         }
         [data-testid="stMetricLabel"] p {
             color: #1B4F72 !important;
             font-weight: 700 !important;
-            font-size: 0.8rem !important;
+            font-size: 0.76rem !important;
         }
         [data-testid="stMetricValue"] {
             color: #0A2540 !important;
             font-family: 'JetBrains Mono', monospace !important;
             font-weight: 800 !important;
-            font-size: 1.15rem !important;
+            font-size: 1.05rem !important;
         }
 
-        /* 10. NHÃN TRẠNG THÁI (BADGES) & KHỐI KẾT QUẢ */
+        /* 10. NHÃN TRẠNG THÁI (BADGES) NHỎ GỌN */
         .status-badge {
             display: inline-flex;
             align-items: center;
             gap: 3px;
-            padding: 2px 9px;
+            padding: 1px 8px;
             border-radius: 999px;
-            font-size: 0.76rem;
+            font-size: 0.72rem;
             font-weight: 700;
-            line-height: 1.3;
+            line-height: 1.35;
             white-space: nowrap;
         }
         .badge-pass {
@@ -388,14 +395,14 @@ def inject_custom_css():
 
         .eval-result-box {
             background-color: #FFFFFF;
-            border: 1.5px solid #C8E6C9;
-            border-radius: 8px;
-            padding: 8px 12px;
-            margin-top: 8px;
+            border: 1px solid #C8E6C9;
+            border-radius: 7px;
+            padding: 7px 10px;
+            margin-top: 6px;
             display: flex;
             align-items: center;
             justify-content: space-between;
-            font-size: 0.86rem;
+            font-size: 0.82rem;
             color: #0A2540;
         }
         .eval-result-pass {
@@ -407,94 +414,193 @@ def inject_custom_css():
             background-color: #FEF2F2;
         }
 
-        /* 11. LỊCH SỬ & BẢNG DỮ LIỆU GỌN GÀNG, KHÔNG BỊ CẮT CHỮ */
+        /* 11. LỊCH SỬ (TAB 2) - KHUNG NHỎ & CHỮ NHỎ GỌN */
         .month-header-banner {
-            background: linear-gradient(90deg, #DDF2E1 0%, #F1F8F3 100%);
+            background-color: #E6F4EA;
             color: #0A2540;
-            padding: 8px 14px;
-            border: 1px solid #A5D6A7;
-            border-left: 5px solid #2E7D32;
-            border-radius: 8px;
-            font-weight: 800;
-            font-size: 0.95rem;
-            margin-top: 14px;
-            margin-bottom: 10px;
+            padding: 5px 12px;
+            border: 1px solid #B9E2C2;
+            border-left: 4px solid #2E7D32;
+            border-radius: 6px;
+            font-weight: 700;
+            font-size: 0.82rem;
+            margin-top: 10px;
+            margin-bottom: 6px;
         }
         .history-meta-bar {
-            background-color: #F4FBF6;
-            border: 1px solid #B9E2C2;
-            border-radius: 8px;
-            padding: 8px 12px;
-            margin-bottom: 10px;
+            background-color: #FFFFFF;
+            border: 1px solid #DCEEE0;
+            border-radius: 6px;
+            padding: 6px 10px;
+            margin-bottom: 8px;
             display: flex;
             flex-wrap: wrap;
-            gap: 14px;
+            gap: 12px;
             align-items: center;
             color: #0A2540;
-            font-size: 0.85rem;
+            font-size: 0.78rem;
         }
         .date-pill {
             background-color: #2E7D32;
             color: #FFFFFF;
-            padding: 2px 9px;
-            border-radius: 5px;
+            padding: 1px 7px;
+            border-radius: 4px;
             font-family: 'JetBrains Mono', monospace;
-            font-weight: 700;
-            font-size: 0.82rem;
+            font-weight: 600;
+            font-size: 0.75rem;
         }
         .lot-pill {
             background-color: #E3F2FD;
             color: #0A2540;
             border: 1px solid #90CAF9;
-            padding: 2px 9px;
-            border-radius: 5px;
+            padding: 1px 7px;
+            border-radius: 4px;
             font-family: 'JetBrains Mono', monospace;
-            font-weight: 700;
-            font-size: 0.82rem;
+            font-weight: 600;
+            font-size: 0.75rem;
         }
 
         .lab-table-wrapper {
-            max-height: 320px;
+            max-height: 280px;
             overflow-x: auto;
             overflow-y: auto;
-            border: 1px solid #C8E6C9;
-            border-radius: 7px;
+            border: 1px solid #DCEEE0;
+            border-radius: 6px;
             background-color: #FFFFFF;
             margin-bottom: 4px;
         }
         .lab-table {
             width: 100%;
             border-collapse: collapse;
-            font-size: 0.82rem;
+            font-size: 0.77rem;
             color: #0A2540;
         }
         .lab-table thead th {
             position: sticky;
             top: 0;
-            background-color: #E6F4EA;
-            color: #0A2540;
+            background-color: #F1F8F3;
+            color: #334E68;
             font-weight: 700;
-            padding: 7px 10px;
-            border-bottom: 1.5px solid #A5D6A7;
+            padding: 5px 8px;
+            border-bottom: 1px solid #C8E6C9;
             white-space: nowrap;
             z-index: 1;
         }
         .lab-table tbody td {
-            padding: 6px 10px;
-            border-bottom: 1px solid #E8F5E9;
+            padding: 4px 8px;
+            border-bottom: 1px solid #F0F7F1;
             font-variant-numeric: tabular-nums;
             font-weight: 500;
             white-space: nowrap;
         }
         .lab-table tbody tr:nth-child(even) {
-            background-color: #F9FBF9;
+            background-color: #FAFDFB;
         }
         .lab-table tbody tr:hover {
             background-color: #E8F5E9;
         }
         .text-left { text-align: left !important; }
-        .text-right { text-align: right !important; font-family: 'JetBrains Mono', monospace; font-size: 0.8rem; }
+        .text-right { text-align: right !important; font-family: 'JetBrains Mono', monospace; font-size: 0.75rem; }
         .text-center { text-align: center !important; }
+
+        /* 12. DANH SÁCH TỔNG QUAN LOT DẠNG COMPACT LIST (GIỐNG ẢNH MẪU TEAM SETTINGS) */
+        .overview-list-card {
+            background-color: #FFFFFF;
+            border: 1px solid #DCEEE0;
+            border-radius: 8px;
+            margin-top: 6px;
+            margin-bottom: 10px;
+            overflow: hidden;
+        }
+        .overview-group-header {
+            display: grid;
+            grid-template-columns: 2.3fr 1.2fr 1fr 0.9fr 0.8fr;
+            align-items: center;
+            padding: 6px 12px;
+            background-color: #F4FAF6;
+            border-bottom: 1px solid #DCEEE0;
+            font-size: 0.73rem;
+            font-weight: 700;
+            color: #52667A;
+        }
+        .overview-mach-title {
+            color: #0A2540;
+            font-weight: 800;
+            font-size: 0.78rem;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        details.overview-item {
+            border-bottom: 1px solid #F0F5F1;
+            background-color: #FFFFFF;
+        }
+        details.overview-item:last-child {
+            border-bottom: none;
+        }
+        summary.overview-row {
+            display: grid;
+            grid-template-columns: 2.3fr 1.2fr 1fr 0.9fr 0.8fr;
+            align-items: center;
+            padding: 6px 12px;
+            font-size: 0.78rem;
+            color: #0A2540;
+            cursor: pointer;
+            list-style: none;
+            transition: background-color 0.12s ease;
+        }
+        summary.overview-row::-webkit-details-marker {
+            display: none;
+        }
+        summary.overview-row:hover {
+            background-color: #F4FBF6;
+        }
+        .item-name-cell {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-weight: 700;
+            color: #0A2540;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .item-avatar {
+            width: 21px;
+            height: 21px;
+            border-radius: 50%;
+            background-color: #E6F4EA;
+            border: 1px dashed #66BB6A;
+            color: #2E7D32;
+            font-size: 0.68rem;
+            font-weight: 800;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+        .item-lot-cell {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.76rem;
+            font-weight: 700;
+            color: #1B5E20;
+        }
+        .item-date-cell {
+            color: #64748B;
+            font-size: 0.76rem;
+            font-variant-numeric: tabular-nums;
+        }
+        .item-action-cell {
+            text-align: right;
+            font-size: 0.74rem;
+            font-weight: 600;
+            color: #2E7D32;
+        }
+        .overview-subbox {
+            padding: 6px 14px 10px 38px;
+            background-color: #FAFDFB;
+            border-top: 1px dashed #DCEEE0;
+        }
     </style>
     """)
 
@@ -706,7 +812,7 @@ if page == "1. Lot Evaluation":
 
 
 # ==============================================================================
-# TRANG 2: LỊCH SỬ ĐÁNH GIÁ & XÁC NHẬN XÓA & THÙNG RÁC (2. Evaluation History)
+# TRANG 2: LỊCH SỬ ĐÁNH GIÁ - KHUNG NHỎ GỌN, CHỮ NHỎ (2. Evaluation History)
 # ==============================================================================
 elif page == "2. Evaluation History":
     render_page_banner(
@@ -745,20 +851,20 @@ elif page == "2. Evaluation History":
 
                 overall_pass = all(str(r['status']).upper() == 'PASS' for _, r in group.iterrows())
                 status_text = "🟢 Đạt" if overall_pass else "🔴 Không đạt"
-                reagent_str = f" • Hóa chất: {reagent}" if reagent else ""
-                expander_label = f":material/event: [{display_date_str}] — {t_name} ({mach}){reagent_str} • LOT: {l_old} ➔ {l_new} [{status_text}]"
+                reagent_str = f" • {reagent}" if reagent else ""
+                expander_label = f":material/event: {display_date_str}  |  {t_name} ({mach}){reagent_str}  |  LOT: {l_old} ➔ {l_new}  [{status_text}]"
 
                 with st.expander(expander_label, expanded=False):
                     reagent_meta = f'<div><strong>Hóa chất:</strong> {reagent}</div>' if reagent else ''
                     overall_badge = format_status_badge_html("PASS" if overall_pass else "FAIL")
                     render_html(f"""
                     <div class="history-meta-bar">
-                        <div><strong>Ngày thực hiện:</strong> <span class="date-pill">{display_date_str}</span></div>
+                        <div><strong>Ngày:</strong> <span class="date-pill">{display_date_str}</span></div>
                         <div><strong>Xét nghiệm:</strong> {t_name} ({unit})</div>
                         <div><strong>Thiết bị:</strong> {mach} {f'({mach_id})' if mach_id else ''}</div>
                         {reagent_meta}
-                        <div><strong>Chuyển đổi LOT:</strong> <span class="lot-pill">{l_old} ➔ {l_new}</span></div>
-                        <div><strong>Trạng thái:</strong> {overall_badge}</div>
+                        <div><strong>LOT:</strong> <span class="lot-pill">{l_old} ➔ {l_new}</span></div>
+                        <div>{overall_badge}</div>
                     </div>
                     """)
 
@@ -804,7 +910,6 @@ elif page == "2. Evaluation History":
                     </div>
                     """)
 
-                    st.write("")
                     col_word, col_pdf, col_del = st.columns([1, 1, 1])
 
                     with col_word:
@@ -878,7 +983,7 @@ elif page == "2. Evaluation History":
 
                 c_trash1, c_restore, c_delete = st.columns([3, 1, 1])
                 with c_trash1:
-                    st.markdown(f"**{disp_date}** &nbsp;|&nbsp; **{t_name}**{reagent_str} &nbsp;|&nbsp; LOT: `{first['lot_old']} ➔ {first['lot_new']}`")
+                    st.markdown(f"<span style='font-size:0.80rem;'><strong>{disp_date}</strong> &nbsp;|&nbsp; <strong>{t_name}</strong>{reagent_str} &nbsp;|&nbsp; LOT: <code>{first['lot_old']} ➔ {first['lot_new']}</code></span>", unsafe_allow_html=True)
 
                 with c_restore:
                     if st.button(":material/restore: Khôi phục", key=f"restore_{c_at}", use_container_width=True):
@@ -896,12 +1001,12 @@ elif page == "2. Evaluation History":
 
 
 # ==============================================================================
-# TRANG 3: TỔNG QUAN LOT - GỌN GÀNG, VỪA KHUNG (3. Lot Overview)
+# TRANG 3: TỔNG QUAN LOT - XẾP TRÊN/DƯỚI, BẤM XỔ XUỐNG + SEARCH BOX (3. Lot Overview)
 # ==============================================================================
 elif page == "3. Lot Overview":
     render_page_banner(
         "Tổng quan LOT (Lot Overview)",
-        "Bảng điều khiển hiện trạng hóa chất và lịch sử thay đổi số LOT trên từng thiết bị phân tích."
+        "Bấm vào từng phân hệ bên dưới để mở danh sách hiện trạng hóa chất và gõ vào ô tìm kiếm để lọc nhanh các đợt đánh giá Lot-to-Lot."
     )
 
     df_hist_dash = hist_df_master.copy()
@@ -911,6 +1016,7 @@ elif page == "3. Lot Overview":
         df_hist_dash['reagent_name'] = df_hist_dash['reagent_name'].fillna('').astype(str).str.strip()
         df_hist_dash.loc[df_hist_dash['reagent_name'].str.lower() == 'nan', 'reagent_name'] = ''
         df_hist_dash['eval_date_obj'] = pd.to_datetime(df_hist_dash['eval_date'])
+        df_hist_dash['date_str'] = df_hist_dash['eval_date_obj'].dt.strftime('%d/%m/%Y')
 
         df_unique_evals = df_hist_dash.drop_duplicates(subset=['created_at']).copy()
         df_unique_evals = df_unique_evals.sort_values(by=['eval_date_obj', 'created_at'], ascending=[False, False])
@@ -918,58 +1024,131 @@ elif page == "3. Lot Overview":
         df_sh = df_unique_evals[df_unique_evals['reagent_name'] == '']
         df_hh = df_unique_evals[df_unique_evals['reagent_name'] != '']
 
-        col_sh, col_hh = st.columns(2, gap="medium")
+        def render_collapsible_overview_section(df_section, section_title, section_icon, group_by_col, search_key, placeholder_text):
+            total_items = df_section[group_by_col].nunique() if not df_section.empty else 0
+            total_evals = len(df_section)
 
-        def render_dashboard_section(df_section, title, icon, group_by_col):
-            st.markdown(f"### {icon} {title}")
-            if df_section.empty:
-                st.info("Chưa có dữ liệu.", icon=":material/info:")
-                return
-            for mach in sorted(df_section['machine'].unique()):
-                with st.container(border=True):
-                    st.markdown(f"#### :material/dns: Máy: **{mach}**")
-                    for item_name, group in df_section[df_section['machine'] == mach].groupby(group_by_col, sort=False):
+            with st.expander(f"{section_icon} {section_title}  —  {total_items} danh mục ({total_evals} đợt đánh giá)", expanded=False):
+                if df_section.empty:
+                    st.info("Chưa có dữ liệu trong phân hệ này.", icon=":material/info:")
+                    return
+
+                search_query = st.text_input(
+                    "Tìm kiếm:",
+                    placeholder=placeholder_text,
+                    key=search_key,
+                    label_visibility="collapsed"
+                ).strip().lower()
+
+                filtered_df = df_section.copy()
+                if search_query:
+                    mask = (
+                        filtered_df[group_by_col].astype(str).str.lower().str.contains(search_query, na=False) |
+                        filtered_df['test_name'].astype(str).str.lower().str.contains(search_query, na=False) |
+                        filtered_df['machine'].astype(str).str.lower().str.contains(search_query, na=False) |
+                        filtered_df['lot_old'].astype(str).str.lower().str.contains(search_query, na=False) |
+                        filtered_df['lot_new'].astype(str).str.lower().str.contains(search_query, na=False) |
+                        filtered_df['date_str'].astype(str).str.lower().str.contains(search_query, na=False)
+                    )
+                    filtered_df = filtered_df[mask]
+
+                if filtered_df.empty:
+                    st.warning(f"Không tìm thấy đợt Lot-to-Lot nào khớp với từ khóa **'{search_query}'**.", icon=":material/search_off:")
+                    return
+
+                for mach in sorted(filtered_df['machine'].unique()):
+                    mach_df = filtered_df[filtered_df['machine'] == mach]
+                    items_html = []
+
+                    for item_name, group in mach_df.groupby(group_by_col, sort=False):
                         latest_eval = group.iloc[0]
-                        latest_status_str = "🟢 Đạt" if str(latest_eval['status']).upper() == "PASS" else "🔴 Không đạt"
-                        expander_title = (
-                            f":material/vaccines: {item_name} | LOT: {latest_eval['lot_new']} "
-                            f"({latest_eval['eval_date_obj'].strftime('%d/%m/%Y')}) [{latest_status_str}]"
-                        )
-                        with st.expander(expander_title):
-                            dash_rows_html = []
-                            for _, r in group.iterrows():
-                                date_fmt = r['eval_date_obj'].strftime('%d/%m/%Y')
-                                badge_html = format_status_badge_html(r['status'])
-                                dash_rows_html.append(f"""
-                                <tr>
-                                    <td class="text-left">{date_fmt}</td>
-                                    <td class="text-right">{r['lot_old']}</td>
-                                    <td class="text-right">{r['lot_new']}</td>
-                                    <td class="text-center">{badge_html}</td>
-                                </tr>
-                                """)
-                            render_html(f"""
-                            <div class="lab-table-wrapper">
-                                <table class="lab-table">
-                                    <thead>
-                                        <tr>
-                                            <th class="text-left">Ngày thay LOT</th>
-                                            <th class="text-right">LOT cũ</th>
-                                            <th class="text-right">LOT mới</th>
-                                            <th class="text-center">Kết quả</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {"".join(dash_rows_html)}
-                                    </tbody>
-                                </table>
-                            </div>
+                        first_char = str(item_name).strip()[0].upper() if str(item_name).strip() else "T"
+                        latest_badge = format_status_badge_html(latest_eval['status'])
+                        latest_date = latest_eval['date_str']
+                        latest_lot = latest_eval['lot_new']
+                        eval_count = len(group)
+
+                        # Tự động mở chi tiết lịch sử nếu người dùng đang gõ từ khóa tìm kiếm
+                        open_attr = "open" if search_query else ""
+
+                        sub_rows = []
+                        for _, r in group.iterrows():
+                            b_html = format_status_badge_html(r['status'])
+                            sub_rows.append(f"""
+                            <tr>
+                                <td class="text-left">{r['date_str']}</td>
+                                <td class="text-left">{r['test_name']}</td>
+                                <td class="text-right">{r['lot_old']}</td>
+                                <td class="text-right">{r['lot_new']}</td>
+                                <td class="text-center">{b_html}</td>
+                            </tr>
                             """)
 
-        with col_sh:
-            render_dashboard_section(df_sh, "Sinh hóa - Miễn dịch", ":material/water_drop:", group_by_col="test_name")
-        with col_hh:
-            render_dashboard_section(df_hh, "Huyết học - HbA1c", ":material/bloodtype:", group_by_col="reagent_name")
+                        items_html.append(f"""
+                        <details class="overview-item" {open_attr}>
+                            <summary class="overview-row">
+                                <div class="item-name-cell">
+                                    <span class="item-avatar">{first_char}</span>
+                                    <span>{item_name}</span>
+                                </div>
+                                <div class="item-lot-cell">{latest_lot}</div>
+                                <div class="item-date-cell">{latest_date}</div>
+                                <div>{latest_badge}</div>
+                                <div class="item-action-cell">{eval_count} đợt ▾</div>
+                            </summary>
+                            <div class="overview-subbox">
+                                <div class="lab-table-wrapper">
+                                    <table class="lab-table">
+                                        <thead>
+                                            <tr>
+                                                <th class="text-left">Ngày thay LOT</th>
+                                                <th class="text-left">Xét nghiệm</th>
+                                                <th class="text-right">LOT cũ</th>
+                                                <th class="text-right">LOT mới</th>
+                                                <th class="text-center">Kết quả</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {"".join(sub_rows)}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </details>
+                        """)
+
+                    render_html(f"""
+                    <div class="overview-list-card">
+                        <div class="overview-group-header">
+                            <div class="overview-mach-title">🖨️ Máy: {mach}</div>
+                            <div>LOT đang dùng</div>
+                            <div>Cập nhật</div>
+                            <div>Trạng thái</div>
+                            <div class="text-right">Lịch sử</div>
+                        </div>
+                        {"".join(items_html)}
+                    </div>
+                    """)
+
+        # 1. PHẦN TRÊN: SINH HÓA - MIỄN DỊCH
+        render_collapsible_overview_section(
+            df_section=df_sh,
+            section_title="Sinh hóa - Miễn dịch",
+            section_icon=":material/water_drop:",
+            group_by_col="test_name",
+            search_key="search_overview_sh",
+            placeholder_text="🔍 Tìm xét nghiệm, dòng máy, số LOT hoặc ngày (VD: GLUCOSE, Alinity, 70058, 03/11...)"
+        )
+
+        # 2. PHẦN DƯỚI: HUYẾT HỌC - HBA1C
+        render_collapsible_overview_section(
+            df_section=df_hh,
+            section_title="Huyết học - HbA1c",
+            section_icon=":material/bloodtype:",
+            group_by_col="reagent_name",
+            search_key="search_overview_hh",
+            placeholder_text="🔍 Tìm hóa chất, dòng máy, số LOT hoặc ngày (VD: Eluent, HA 8190V, 6G3101, 25/10...)"
+        )
 
 
 # ==============================================================================
