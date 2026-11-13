@@ -60,6 +60,29 @@ def get_cached_report_docx_bytes(eval_date_str, test_name, unit, machine, machin
     return docx_io.getvalue()
 
 
+def convert_docx_to_pdf_bytes(docx_bytes):
+    with tempfile.TemporaryDirectory() as tmpdir:
+        docx_path = os.path.join(tmpdir, "report.docx")
+        pdf_path = os.path.join(tmpdir, "report.pdf")
+        with open(docx_path, "wb") as f:
+            f.write(docx_bytes)
+        try:
+            subprocess.run(['libreoffice', '--headless', '--convert-to', 'pdf', docx_path, '--outdir', tmpdir],
+                           check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        except FileNotFoundError:
+            try:
+                subprocess.run(['soffice', '--headless', '--convert-to', 'pdf', docx_path, '--outdir', tmpdir],
+                               check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            except Exception:
+                return None
+        except Exception:
+            return None
+        if os.path.exists(pdf_path):
+            with open(pdf_path, "rb") as f:
+                return f.read()
+    return None
+
+
 # ==============================================================================
 # HỆ THỐNG POP-UP DIALOG HIỂN THỊ GIỮA MÀN HÌNH
 # ==============================================================================
@@ -155,6 +178,9 @@ def render_pending_popup():
             st.success(f"**{data['title']}**: {data['message']}")
 
 
+# ==============================================================================
+# CSS GIAO DIỆN CHUNG
+# ==============================================================================
 def inject_custom_css():
     render_html("""
     <style>
@@ -781,84 +807,11 @@ def format_status_badge_html(status_val: str) -> str:
     return f'<span class="status-badge badge-warn">! {status_val}</span>'
 
 
-inject_custom_css()
-init_db()
-render_pending_popup()
-
-all_setups = load_all_setups()
-hist_df_master = load_stage2_history()
-
 # ==============================================================================
-# THANH MENU DỌC BÊN TRÁI (DÙNG ON_CLICK ĐỂ CHUYỂN TRANG TRONG 1 LẦN TẢI)
-# ==============================================================================
-MENU_ITEMS = [
-    ("1. Lot Evaluation", ":material/science:"),
-    ("2. Evaluation History", ":material/history:"),
-    ("3. Lot Overview", ":material/dashboard:"),
-    ("4. Parameter Setup", ":material/tune:"),
-    ("5. Test Directory", ":material/folder_managed:")
-]
-
-if "active_menu_page" not in st.session_state:
-    st.session_state["active_menu_page"] = "1. Lot Evaluation"
-
-
-def _switch_menu_page(target_page: str):
-    st.session_state["active_menu_page"] = target_page
-
-
-with st.sidebar:
-    render_html("""
-    <div class="sidebar-brand">
-        <div class="sidebar-brand-title">🔬 CLSI EP26-Ed2</div>
-        <div class="sidebar-brand-sub">Lot-to-Lot Evaluation System</div>
-    </div>
-    <div class="sidebar-section-label">MAIN MENU</div>
-    """)
-
-    for item_label, item_icon in MENU_ITEMS:
-        is_active = (st.session_state["active_menu_page"] == item_label)
-        st.button(
-            f"{item_icon}  {item_label}",
-            key=f"nav_btn_{item_label}",
-            type="primary" if is_active else "secondary",
-            use_container_width=True,
-            on_click=_switch_menu_page,
-            args=(item_label,)
-        )
-
-page = st.session_state["active_menu_page"]
-
-
-def convert_docx_to_pdf_bytes(docx_bytes):
-    with tempfile.TemporaryDirectory() as tmpdir:
-        docx_path = os.path.join(tmpdir, "report.docx")
-        pdf_path = os.path.join(tmpdir, "report.pdf")
-        with open(docx_path, "wb") as f:
-            f.write(docx_bytes)
-        try:
-            subprocess.run(['libreoffice', '--headless', '--convert-to', 'pdf', docx_path, '--outdir', tmpdir],
-                           check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        except FileNotFoundError:
-            try:
-                subprocess.run(['soffice', '--headless', '--convert-to', 'pdf', docx_path, '--outdir', tmpdir],
-                               check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-            except Exception:
-                return None
-        except Exception:
-            return None
-        if os.path.exists(pdf_path):
-            with open(pdf_path, "rb") as f:
-                return f.read()
-    return None
-
-
-# ==============================================================================
-# TRANG 1: GIAI ĐOẠN 2 - ĐÁNH GIÁ MẪU HẰNG NGÀY (1. Lot Evaluation)
+# CÁC HÀM WORKSPACE CHO TỪNG TRANG (KHAI BÁO TRƯỚC KHỐI ĐIỀU HƯỚNG IF/ELIF)
 # ==============================================================================
 @_fragment_decorator
 def render_stage2_workspace(active_setups: pd.DataFrame):
-    render_pending_popup()
     with st.container(border=True):
         st.markdown("#### :material/assignment: Thông tin đợt đánh giá")
         c1, c2, c3 = st.columns([1.5, 1.5, 1])
@@ -982,25 +935,8 @@ def render_stage2_workspace(active_setups: pd.DataFrame):
             st.rerun()
 
 
-if page == "1. Lot Evaluation":
-    render_page_banner(
-        "Đánh giá Mẫu thực tế (Stage 2)",
-        "Nhập kết quả chạy mẫu song song trên lô hóa chất cũ và mới để kiểm tra độ tương đồng theo tiêu chuẩn CLSI EP26-Ed2."
-    )
-
-    active_setups = all_setups[all_setups["is_selected"] == 1] if not all_setups.empty else pd.DataFrame()
-    if active_setups.empty:
-        st.warning("Chưa có cấu hình xét nghiệm nào. Vui lòng chọn mục **4. Parameter Setup** ở thanh menu bên trái để thiết lập thông số ban đầu!", icon=":material/warning:")
-    else:
-        render_stage2_workspace(active_setups)
-
-
-# ==============================================================================
-# TRANG 2: LỊCH SỬ ĐÁNH GIÁ + SEARCH BOX TRÊN CÙNG CHO ĐOÀN KIỂM TRA (2. Evaluation History)
-# ==============================================================================
 @_fragment_decorator
 def render_history_workspace(hist_df_master: pd.DataFrame, all_setups: pd.DataFrame):
-    render_pending_popup()
     hist_df = hist_df_master.copy()
 
     if hist_df.empty:
@@ -1232,17 +1168,6 @@ def render_history_workspace(hist_df_master: pd.DataFrame, all_setups: pd.DataFr
                         st.rerun()
 
 
-elif page == "2. Evaluation History":
-    render_page_banner(
-        "Lịch sử Đánh giá Mẫu thực tế",
-        "Tra cứu hồ sơ đánh giá Lot-to-Lot theo từng tháng, xuất biên bản báo cáo Word/PDF và khôi phục các bản ghi đã xóa."
-    )
-    render_history_workspace(hist_df_master, all_setups)
-
-
-# ==============================================================================
-# TRANG 3: TỔNG QUAN LOT + SEARCH BOX TRÊN CÙNG (3. Lot Overview)
-# ==============================================================================
 @_fragment_decorator
 def render_overview_workspace(hist_df_master: pd.DataFrame):
     df_hist_dash = hist_df_master.copy()
@@ -1407,20 +1332,8 @@ def render_overview_workspace(hist_df_master: pd.DataFrame):
     )
 
 
-elif page == "3. Lot Overview":
-    render_page_banner(
-        "Tổng quan LOT (Lot Overview)",
-        "Gõ vào thanh tìm kiếm bên dưới để tra cứu ngay số LOT mới nhất đang chạy trên từng máy, hoặc bấm vào từng phân hệ để xem danh sách."
-    )
-    render_overview_workspace(hist_df_master)
-
-
-# ==============================================================================
-# TRANG 4: GIAI ĐOẠN 1 - SETUP THÔNG SỐ (4. Parameter Setup)
-# ==============================================================================
 @_fragment_decorator
 def render_stage1_workspace(all_setups_for_dropdown: pd.DataFrame):
-    render_pending_popup()
     with st.container(border=True):
         st.markdown("#### :material/tune: Thông tin xét nghiệm & thiết bị")
         col1, col2, col3, col4, col5 = st.columns([1.5, 1.5, 1.2, 1, 1.5])
@@ -1558,6 +1471,79 @@ def render_stage1_workspace(all_setups_for_dropdown: pd.DataFrame):
             st.rerun()
 
 
+# ==============================================================================
+# KHỞI TẠO DỮ LIỆU, MENU SIDEBAR VÀ ĐIỀU HƯỚNG 5 TRANG LIỀN MẠCH
+# ==============================================================================
+inject_custom_css()
+init_db()
+render_pending_popup()
+
+all_setups = load_all_setups()
+hist_df_master = load_stage2_history()
+
+MENU_ITEMS = [
+    ("1. Lot Evaluation", ":material/science:"),
+    ("2. Evaluation History", ":material/history:"),
+    ("3. Lot Overview", ":material/dashboard:"),
+    ("4. Parameter Setup", ":material/tune:"),
+    ("5. Test Directory", ":material/folder_managed:")
+]
+
+if "active_menu_page" not in st.session_state:
+    st.session_state["active_menu_page"] = "1. Lot Evaluation"
+
+
+def _switch_menu_page(target_page: str):
+    st.session_state["active_menu_page"] = target_page
+
+
+with st.sidebar:
+    render_html("""
+    <div class="sidebar-brand">
+        <div class="sidebar-brand-title">🔬 CLSI EP26-Ed2</div>
+        <div class="sidebar-brand-sub">Lot-to-Lot Evaluation System</div>
+    </div>
+    <div class="sidebar-section-label">MAIN MENU</div>
+    """)
+
+    for item_label, item_icon in MENU_ITEMS:
+        is_active = (st.session_state["active_menu_page"] == item_label)
+        st.button(
+            f"{item_icon}  {item_label}",
+            key=f"nav_btn_{item_label}",
+            type="primary" if is_active else "secondary",
+            use_container_width=True,
+            on_click=_switch_menu_page,
+            args=(item_label,)
+        )
+
+page = st.session_state["active_menu_page"]
+
+if page == "1. Lot Evaluation":
+    render_page_banner(
+        "Đánh giá Mẫu thực tế (Stage 2)",
+        "Nhập kết quả chạy mẫu song song trên lô hóa chất cũ và mới để kiểm tra độ tương đồng theo tiêu chuẩn CLSI EP26-Ed2."
+    )
+    active_setups = all_setups[all_setups["is_selected"] == 1] if not all_setups.empty else pd.DataFrame()
+    if active_setups.empty:
+        st.warning("Chưa có cấu hình xét nghiệm nào. Vui lòng chọn mục **4. Parameter Setup** ở thanh menu bên trái để thiết lập thông số ban đầu!", icon=":material/warning:")
+    else:
+        render_stage2_workspace(active_setups)
+
+elif page == "2. Evaluation History":
+    render_page_banner(
+        "Lịch sử Đánh giá Mẫu thực tế",
+        "Tra cứu hồ sơ đánh giá Lot-to-Lot theo từng tháng, xuất biên bản báo cáo Word/PDF và khôi phục các bản ghi đã xóa."
+    )
+    render_history_workspace(hist_df_master, all_setups)
+
+elif page == "3. Lot Overview":
+    render_page_banner(
+        "Tổng quan LOT (Lot Overview)",
+        "Gõ vào thanh tìm kiếm bên dưới để tra cứu ngay số LOT mới nhất đang chạy trên từng máy, hoặc bấm vào từng phân hệ để xem danh sách."
+    )
+    render_overview_workspace(hist_df_master)
+
 elif page == "4. Parameter Setup":
     render_page_banner(
         "Cấu hình Thông số (Stage 1)",
@@ -1565,10 +1551,6 @@ elif page == "4. Parameter Setup":
     )
     render_stage1_workspace(all_setups)
 
-
-# ==============================================================================
-# TRANG 5: DANH MỤC CẤU HÌNH ĐÃ LƯU (5. Test Directory)
-# ==============================================================================
 elif page == "5. Test Directory":
     render_page_banner(
         "Danh mục Xét nghiệm đã lưu",
