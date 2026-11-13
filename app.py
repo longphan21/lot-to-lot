@@ -1551,9 +1551,12 @@ elif page == "4. Parameter Setup":
     )
     render_stage1_workspace(all_setups)
 
+# ==============================================================================
+# TRANG 5: DANH MỤC CẤU HÌNH ĐÃ LƯU (5. Test Directory)
+# ==============================================================================
 elif page == "5. Test Directory":
     render_page_banner(
-        "Danh mục Xét nghiệm đã lưu",
+        "Danh mục Xét nghiệm đã lưu (Test Directory)",
         "Quản lý toàn bộ thông số cấu hình Stage 1 hiện có trong cơ sở dữ liệu và hỗ trợ khôi phục dữ liệu từ file CSV/Excel."
     )
 
@@ -1580,8 +1583,100 @@ elif page == "5. Test Directory":
 
     if not all_setups.empty:
         with st.container(border=True):
-            st.markdown("#### :material/table_chart: Danh sách cấu hình Stage 1 hiện có")
-            st.dataframe(all_setups, use_container_width=True, hide_index=True)
+            c_title, c_export = st.columns([3.5, 1])
+            with c_title:
+                st.markdown("#### :material/table_chart: Stage 1 Parameter Directory")
+            with c_export:
+                csv_backup = all_setups.to_csv(index=False).encode("utf-8-sig")
+                st.download_button(
+                    label=":material/download: Export CSV",
+                    data=csv_backup,
+                    file_name="Stage1_Parameter_Setup_Backup.csv",
+                    mime="text/csv",
+                    use_container_width=True
+                )
+
+            dir_rows_html = []
+            for _, r in all_setups.iterrows():
+                t_name = str(r.get("test_name", "")).strip()
+                mach = str(r.get("machine", "")).strip()
+                mach_id = clean_lot_str(r.get("machine_id", ""))
+                unit_val = str(r.get("unit", "")).strip()
+                target_val = f"{float(r.get('target_conc', 0)):g}"
+
+                # 8 cột thông số quan trọng: In đậm (Bold) & Căn giữa (Center)
+                tea_val = f"{float(r.get('tea_pct', 0)):g}%"
+                swrl_val = f"{float(r.get('swrl_pct', 0)):g}%"
+                sr_val = f"{float(r.get('sr_pct', 0)):g}%"
+                cd_swrl_val = f"{float(r.get('cd_swrl', 0)):g}"
+                sr_swrl_val = f"{float(r.get('sr_swrl', 0)):g}"
+                k_val = f"{float(r.get('k_factor', 0)):g}"
+                power_val = f"{float(r.get('power_achieve', 0)):.3f}".rstrip("0").rstrip(".")
+                rl_val = f"{float(r.get('rejection_limit', 0)):g}%"
+
+                n_samp = int(float(r.get("n_samples", 0)))
+                is_sel = int(float(r.get("is_selected", 1))) == 1
+                status_badge = (
+                    '<span class="status-badge badge-pass">✓ Active</span>'
+                    if is_sel else '<span class="status-badge badge-warn">Inactive</span>'
+                )
+
+                cell_bold_center = 'class="text-center" style="font-weight:700; color:#0A2540; vertical-align:middle;"'
+                cell_rl_highlight = 'class="text-center" style="font-weight:800; color:#1B5E20; background-color:#F1F8F3; vertical-align:middle;"'
+
+                dir_rows_html.append(f"""
+                <tr>
+                    <td class="text-center" style="font-weight:700; color:#0A2540; vertical-align:middle;">{t_name}</td>
+                    <td class="text-center" style="vertical-align:middle;">{mach}</td>
+                    <td class="text-center" style="vertical-align:middle; color:#475569;">{mach_id}</td>
+                    <td class="text-center" style="font-weight:600; vertical-align:middle;">{target_val}</td>
+                    <td class="text-center" style="vertical-align:middle; color:#475569;">{unit_val}</td>
+                    <td {cell_bold_center}>{tea_val}</td>
+                    <td {cell_bold_center}>{swrl_val}</td>
+                    <td {cell_bold_center}>{sr_val}</td>
+                    <td {cell_bold_center}>{cd_swrl_val}</td>
+                    <td {cell_bold_center}>{sr_swrl_val}</td>
+                    <td {cell_bold_center}>{k_val}</td>
+                    <td {cell_bold_center}>{power_val}</td>
+                    <td {cell_rl_highlight}>{rl_val}</td>
+                    <td class="text-center" style="font-weight:600; vertical-align:middle;">{n_samp}</td>
+                    <td class="text-center" style="vertical-align:middle;">{status_badge}</td>
+                </tr>
+                """)
+
+            th_style = 'class="text-center" style="font-weight:700; color:#0A2540; vertical-align:middle;"'
+            th_key_style = 'class="text-center" style="font-weight:800; color:#1B5E20; background-color:#DCFCE7; vertical-align:middle;"'
+
+            render_html(f"""
+            <div class="lab-table-wrapper" style="max-height: 460px;">
+                <table class="lab-table">
+                    <thead>
+                        <tr>
+                            <th {th_style}>Test Name</th>
+                            <th {th_style}>Analyzer</th>
+                            <th {th_style}>Machine ID</th>
+                            <th {th_style}>Target Conc.</th>
+                            <th {th_style}>Unit</th>
+                            <th {th_key_style}>TEa%</th>
+                            <th {th_key_style}>Swrl</th>
+                            <th {th_key_style}>Sr</th>
+                            <th {th_key_style}>CD/Swrl</th>
+                            <th {th_key_style}>Sr/Swrl</th>
+                            <th {th_key_style}>K</th>
+                            <th {th_key_style}>Power Achieve</th>
+                            <th {th_key_style}>Rejection Limit</th>
+                            <th {th_style}>Samples (n)</th>
+                            <th {th_style}>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {"".join(dir_rows_html)}
+                    </tbody>
+                </table>
+            </div>
+            """)
+
+            st.write("")
             c_d1, c_d2, c_d3 = st.columns([2, 2, 1])
             with c_d1:
                 del_test = st.selectbox("Chọn XN cần xóa:", all_setups["test_name"].unique(), key="d_t1")
