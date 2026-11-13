@@ -1555,9 +1555,36 @@ elif page == "4. Parameter Setup":
 # TRANG 5: DANH MỤC CẤU HÌNH ĐÃ LƯU (5. Test Directory)
 # ==============================================================================
 elif page == "5. Test Directory":
+    def _update_setup_active_status(id_to_status_map: dict):
+        """Cập nhật trạng thái Active (1) / Inactive (0) trực tiếp lên Google Sheets (RAW mode)."""
+        from connection import get_spreadsheet
+        from database import STAGE1_HEADERS
+        sh = get_spreadsheet()
+        ws = sh.worksheet("stage1_setup")
+        rows = ws.get_all_values()
+        if not rows or len(rows) <= 1:
+            return
+        headers = rows[0]
+        data = []
+        for r in rows[1:]:
+            if not any(str(cell).strip() for cell in r):
+                continue
+            row_dict = {h: (r[i] if i < len(r) else "") for i, h in enumerate(headers) if h}
+            r_id = str(row_dict.get("id", "")).strip()
+            if r_id in id_to_status_map:
+                row_dict["is_selected"] = 1 if id_to_status_map[r_id] else 0
+            data.append(row_dict)
+        ws.clear()
+        if data:
+            df_to_save = pd.DataFrame(data).reindex(columns=STAGE1_HEADERS).fillna("")
+            ws.update([STAGE1_HEADERS] + df_to_save.values.tolist(), value_input_option="RAW")
+        else:
+            ws.append_row(STAGE1_HEADERS, value_input_option="RAW")
+        load_all_setups.clear()
+
     render_page_banner(
         "Danh mục Xét nghiệm đã lưu (Test Directory)",
-        "Quản lý toàn bộ thông số cấu hình Stage 1 hiện có trong cơ sở dữ liệu và hỗ trợ khôi phục dữ liệu từ file CSV/Excel."
+        "Quản lý thông số cấu hình Stage 1: Dòng ở trạng thái Active sẽ được sử dụng ở mục 1. Lot Evaluation, dòng Inactive sẽ tạm ngưng sử dụng."
     )
 
     with st.expander(":material/upload_file: Khôi phục / Import dữ liệu từ file (.csv, .xlsx)", expanded=False):
@@ -1604,7 +1631,6 @@ elif page == "5. Test Directory":
                 unit_val = str(r.get("unit", "")).strip()
                 target_val = f"{float(r.get('target_conc', 0)):g}"
 
-                # 8 cột thông số quan trọng: In đậm (Bold) & Căn giữa (Center)
                 tea_val = f"{float(r.get('tea_pct', 0)):g}%"
                 swrl_val = f"{float(r.get('swrl_pct', 0)):g}%"
                 sr_val = f"{float(r.get('sr_pct', 0)):g}%"
@@ -1616,16 +1642,19 @@ elif page == "5. Test Directory":
 
                 n_samp = int(float(r.get("n_samples", 0)))
                 is_sel = int(float(r.get("is_selected", 1))) == 1
-                status_badge = (
-                    '<span class="status-badge badge-pass">✓ Active</span>'
-                    if is_sel else '<span class="status-badge badge-warn">Inactive</span>'
-                )
+
+                if is_sel:
+                    status_badge = '<span class="status-badge badge-pass">✓ Active</span>'
+                    row_style = ""
+                else:
+                    status_badge = '<span class="status-badge badge-warn">⏸ Inactive</span>'
+                    row_style = 'style="opacity: 0.55; background-color: #F8FAFC;"'
 
                 cell_bold_center = 'class="text-center" style="font-weight:700; color:#0A2540; vertical-align:middle;"'
                 cell_rl_highlight = 'class="text-center" style="font-weight:800; color:#1B5E20; background-color:#F1F8F3; vertical-align:middle;"'
 
                 dir_rows_html.append(f"""
-                <tr>
+                <tr {row_style}>
                     <td class="text-center" style="font-weight:700; color:#0A2540; vertical-align:middle;">{t_name}</td>
                     <td class="text-center" style="vertical-align:middle;">{mach}</td>
                     <td class="text-center" style="vertical-align:middle; color:#475569;">{mach_id}</td>
@@ -1676,16 +1705,68 @@ elif page == "5. Test Directory":
             </div>
             """)
 
-            st.write("")
-            c_d1, c_d2, c_d3 = st.columns([2, 2, 1])
-            with c_d1:
-                del_test = st.selectbox("Chọn XN cần xóa:", all_setups["test_name"].unique(), key="d_t1")
-            with c_d2:
-                del_mach = st.selectbox("Chọn Máy cần xóa:", all_setups["machine"].unique(), key="d_m1")
-            with c_d3:
-                st.write("")
-                st.write("")
-                if st.button(":material/delete: Xóa cấu hình", use_container_width=True):
+        # HAI KHUNG THAO TÁC: 1. BẬT/TẮT ACTIVE/INACTIVE  |  2. XÓA VĨNH VIỄN CẤU HÌNH
+        col_toggle_box, col_del_box = st.columns(2)
+
+        with col_toggle_box:
+            with st.container(border=True):
+                st.markdown("#### :material/toggle_on: Bật / Tắt trạng thái sử dụng (Active / Inactive)")
+                t_col1, t_col2 = st.columns(2)
+                with t_col1:
+                    tg_test = st.selectbox("Chọn Xét nghiệm:", all_setups["test_name"].unique(), key="tg_test_sel")
+                with t_col2:
+                    tg_mach_list = all_setups[all_setups["test_name"] == tg_test]["machine"].unique()
+                    tg_mach = st.selectbox("Chọn Máy:", tg_mach_list, key="tg_mach_sel")
+
+                sub_rows_tg = all_setups[
+                    (all_setups["test_name"] == tg_test) & (all_setups["machine"] == tg_mach)
+                ].reset_index(drop=True)
+
+                level_options = ["Tất cả các mức nồng độ"]
+                level_id_map = {"Tất cả các mức nồng độ": sub_rows_tg["id"].astype(str).tolist()}
+
+                for _, sr in sub_rows_tg.iterrows():
+                    st_txt = "Active" if int(float(sr.get("is_selected", 1))) == 1 else "Inactive"
+                    lbl = f"Mức {float(sr['target_conc']):g} {sr['unit']} (Đang: {st_txt})"
+                    level_options.append(lbl)
+                    level_id_map[lbl] = [str(sr["id"])]
+
+                tg_level_choice = st.selectbox("Phạm vi áp dụng:", level_options, key="tg_level_sel")
+                target_ids = level_id_map[tg_level_choice]
+
+                btn_act, btn_inact = st.columns(2)
+                with btn_act:
+                    if st.button(":material/check_circle: Bật Active (Sử dụng)", type="primary", use_container_width=True, key="btn_set_active"):
+                        _update_setup_active_status({rid: True for rid in target_ids})
+                        queue_popup(
+                            "Đã bật trạng thái Active!",
+                            f"Cấu hình <b>{tg_test}</b> ({tg_mach}) — <i>{tg_level_choice}</i> đã được kích hoạt và sẵn sàng sử dụng ở mục <b>1. Lot Evaluation</b>.",
+                            "success"
+                        )
+                        st.rerun()
+                with btn_inact:
+                    if st.button(":material/pause_circle: Tắt Inactive (Ngưng dùng)", use_container_width=True, key="btn_set_inactive"):
+                        _update_setup_active_status({rid: False for rid in target_ids})
+                        queue_popup(
+                            "Đã chuyển sang Inactive!",
+                            f"Cấu hình <b>{tg_test}</b> ({tg_mach}) — <i>{tg_level_choice}</i> đã tạm ngưng sử dụng và được ẩn khỏi danh sách chạy mẫu ở mục <b>1. Lot Evaluation</b>.",
+                            "warning"
+                        )
+                        st.rerun()
+
+        with col_del_box:
+            with st.container(border=True):
+                st.markdown("#### :material/delete_sweep: Xóa vĩnh viễn cấu hình khỏi Database")
+                d_col1, d_col2 = st.columns(2)
+                with d_col1:
+                    del_test = st.selectbox("Chọn XN cần xóa:", all_setups["test_name"].unique(), key="d_t1")
+                with d_col2:
+                    del_mach_list = all_setups[all_setups["test_name"] == del_test]["machine"].unique()
+                    del_mach = st.selectbox("Chọn Máy cần xóa:", del_mach_list, key="d_m1")
+
+                st.markdown("<div style='font-size:0.78rem; color:#64748B; margin-bottom:10px;'>Lưu ý: Nếu chỉ muốn ẩn tạm thời dòng máy cũ (VD: <i>Abbott (Alinity)</i> hoặc <i>Roche (Cobas)</i>), bạn nên dùng chức năng <b>Tắt Inactive</b> bên cạnh thay vì xóa.</div>", unsafe_allow_html=True)
+
+                if st.button(":material/delete: Xóa vĩnh viễn cấu hình này", use_container_width=True, key="btn_del_setup_perm"):
                     if _dialog_decorator is not None:
                         confirm_delete_setup_modal(del_test, del_mach)
                     else:
