@@ -32,11 +32,128 @@ DEFAULT_SAMPLES = {
     ])
 }
 
+# Hỗ trợ tương thích mọi phiên bản Streamlit cho Dialog và Fragment
+_dialog_decorator = getattr(st, "dialog", getattr(st, "experimental_dialog", None))
+_fragment_decorator = getattr(st, "fragment", getattr(st, "experimental_fragment", lambda f: f))
+
 
 def render_html(html_str: str):
     """Xóa khoảng trắng đầu dòng để Streamlit luôn hiển thị đúng HTML."""
     clean_html = "\n".join(line.lstrip() for line in html_str.splitlines() if line.strip())
     st.markdown(clean_html, unsafe_allow_html=True)
+
+
+def clean_lot_str(val) -> str:
+    """Làm sạch mã LOT/SID nếu dữ liệu cũ trên Sheet bị dính đuôi .0 do ép kiểu số."""
+    s = str(val).strip()
+    if s.endswith(".0") and s[:-2].replace("-", "").isdigit():
+        return s[:-2]
+    return s
+
+
+@st.cache_data(ttl=3600, show_spinner=False)
+def get_cached_report_docx_bytes(eval_date_str, test_name, unit, machine, machine_id, reagent_name, lot_old, lot_new, setup_df, group_df) -> bytes:
+    """Lưu bộ nhớ đệm (cache) cho file Word đã tạo để mở Tab 2 (Lịch sử) nhanh tức thì."""
+    docx_io = generate_report_docx(
+        eval_date_str, test_name, unit, machine, machine_id,
+        reagent_name, lot_old, lot_new, setup_df, group_df
+    )
+    return docx_io.getvalue()
+
+
+# ==============================================================================
+# HỆ THỐNG POP-UP DIALOG HIỂN THỊ GIỮA MÀN HÌNH
+# ==============================================================================
+def queue_popup(title: str, message: str, status_type: str = "success"):
+    """Lưu thông tin Pop-up vào session_state trước khi st.rerun() để không bị mất thông báo."""
+    st.session_state["pending_popup"] = {
+        "title": title,
+        "message": message,
+        "status_type": status_type
+    }
+
+
+if _dialog_decorator is not None:
+    @_dialog_decorator("Thông báo hệ thống")
+    def _show_notification_modal(title: str, message: str, status_type: str):
+        icon_map = {
+            "success": ("✅", "#15803D", "#DCFCE7", "#86EFAC"),
+            "warning": ("⚠️", "#B45309", "#FEF3C7", "#FDE68A"),
+            "error": ("🗑️", "#B91C1C", "#FEE2E2", "#FCA5A5"),
+            "info": ("ℹ️", "#0369A1", "#E0F2FE", "#BAE6FD")
+        }
+        ic, color_text, bg_box, border_box = icon_map.get(status_type, icon_map["success"])
+
+        render_html(f"""
+        <div style="background-color:{bg_box}; border:1.5px solid {border_box}; border-radius:10px; padding:16px; text-align:center; margin-bottom:14px;">
+            <div style="font-size:2rem; line-height:1.1; margin-bottom:8px;">{ic}</div>
+            <div style="color:{color_text}; font-size:1.02rem; font-weight:800; margin-bottom:6px;">{title}</div>
+            <div style="color:#0A2540; font-size:0.86rem; font-weight:500; line-height:1.45;">{message}</div>
+        </div>
+        """)
+        if st.button("OK", type="primary", use_container_width=True, key="popup_ok_btn"):
+            st.rerun()
+
+    @_dialog_decorator("Xác nhận xóa đợt đánh giá")
+    def confirm_delete_eval_modal(created_at: str, t_name: str, display_date_str: str, l_old: str, l_new: str):
+        render_html(f"""
+        <div style="background-color:#FEF3C7; border:1.5px solid #FDE68A; border-radius:10px; padding:14px 16px; margin-bottom:14px;">
+            <div style="color:#B45309; font-size:0.95rem; font-weight:800; margin-bottom:6px;">⚠️ Bạn có chắc chắn muốn xóa đợt đánh giá này?</div>
+            <div style="color:#0A2540; font-size:0.84rem; line-height:1.5;">
+                • <strong>Xét nghiệm:</strong> {t_name}<br>
+                • <strong>Ngày thực hiện:</strong> {display_date_str}<br>
+                • <strong>Chuyển đổi LOT:</strong> <code>{l_old} ➔ {l_new}</code><br>
+                <span style="color:#475569; font-size:0.78rem;">(Dữ liệu sau khi xóa sẽ được chuyển vào mục Thùng rác để bạn có thể khôi phục khi cần)</span>
+            </div>
+        </div>
+        """)
+        c_yes, c_no = st.columns(2)
+        with c_yes:
+            if st.button(":material/check: Xác nhận xóa", type="primary", use_container_width=True, key=f"modal_yes_{created_at}"):
+                delete_stage2_evaluation(created_at)
+                queue_popup(
+                    "Đã chuyển vào Thùng rác",
+                    f"Đợt đánh giá <b>{t_name}</b> ngày <b>{display_date_str}</b> (LOT: {l_old} ➔ {l_new}) đã được chuyển vào Thùng rác.",
+                    "warning"
+                )
+                st.rerun()
+        with c_no:
+            if st.button(":material/close: Hủy", use_container_width=True, key=f"modal_no_{created_at}"):
+                st.rerun()
+
+    @_dialog_decorator("Xác nhận xóa cấu hình Stage 1")
+    def confirm_delete_setup_modal(del_test: str, del_mach: str):
+        render_html(f"""
+        <div style="background-color:#FEE2E2; border:1.5px solid #FCA5A5; border-radius:10px; padding:14px 16px; margin-bottom:14px;">
+            <div style="color:#B91C1C; font-size:0.95rem; font-weight:800; margin-bottom:6px;">⚠️ Xác nhận xóa cấu hình xét nghiệm?</div>
+            <div style="color:#0A2540; font-size:0.84rem; line-height:1.5;">
+                Bạn đang chuẩn bị xóa cấu hình <strong>{del_test}</strong> trên máy <strong>{del_mach}</strong> khỏi cơ sở dữ liệu.
+            </div>
+        </div>
+        """)
+        c_yes, c_no = st.columns(2)
+        with c_yes:
+            if st.button(":material/delete: Xác nhận xóa", type="primary", use_container_width=True, key="modal_del_setup_yes"):
+                delete_specific_setup(del_test, del_mach)
+                queue_popup(
+                    "Đã xóa cấu hình",
+                    f"Đã xóa cấu hình xét nghiệm <b>{del_test}</b> ({del_mach}) khỏi Database.",
+                    "error"
+                )
+                st.rerun()
+        with c_no:
+            if st.button(":material/close: Hủy", use_container_width=True, key="modal_del_setup_no"):
+                st.rerun()
+
+
+def render_pending_popup():
+    """Kiểm tra và bật Pop-up ngay khi trang vừa tải lại sau thao tác."""
+    if "pending_popup" in st.session_state and st.session_state["pending_popup"] is not None:
+        data = st.session_state.pop("pending_popup")
+        if _dialog_decorator is not None:
+            _show_notification_modal(data["title"], data["message"], data["status_type"])
+        else:
+            st.success(f"**{data['title']}**: {data['message']}")
 
 
 def inject_custom_css():
@@ -51,7 +168,10 @@ def inject_custom_css():
             font-family: 'Be Vietnam Pro', -apple-system, BlinkMacSystemFont, sans-serif !important;
         }
 
-        .block-container {
+        /* Hạ thấp lề trên (3.8rem) để không bị thanh Header của Streamlit che mất khung tiêu đề */
+        .block-container,
+        [data-testid="stMainBlockContainer"],
+        [data-testid="stAppViewBlockContainer"] {
             padding-top: 3.8rem !important;
             padding-bottom: 2rem !important;
             padding-left: 1.6rem !important;
@@ -67,6 +187,16 @@ def inject_custom_css():
         [data-testid="stHeaderActionElements"],
         h1 a, h2 a, h3 a, h4 a, h5 a, h6 a {
             display: none !important;
+        }
+
+        /* Định dạng khung Pop-up Dialog chính giữa màn hình */
+        div[role="dialog"] {
+            max-width: 440px !important;
+            width: 92vw !important;
+            border-radius: 14px !important;
+            border: 1.5px solid #A5D6A7 !important;
+            box-shadow: 0 14px 36px rgba(10, 37, 64, 0.22) !important;
+            background-color: #FFFFFF !important;
         }
 
         /* 2. TIÊU ĐỀ GỌN GÀNG, CỠ CHỮ VỪA VẶN */
@@ -213,13 +343,14 @@ def inject_custom_css():
             font-size: 0.85rem !important;
         }
 
-        /* 5. BANNER ĐẦU TRANG NHỎ GỌN */
+        /* 5. BANNER ĐẦU TRANG NHỎ GỌN, HIỂN THỊ TRỌN VẸN */
         .page-banner {
             background: linear-gradient(90deg, #E6F4EA 0%, #FFFFFF 100%);
             border: 1px solid #A5D6A7;
             border-left: 5px solid #2E7D32;
             border-radius: 8px;
             padding: 10px 16px;
+            margin-top: 4px;
             margin-bottom: 14px;
             box-shadow: 0 1px 3px rgba(10, 37, 64, 0.03);
         }
@@ -314,8 +445,9 @@ def inject_custom_css():
             -webkit-user-select: none !important;
         }
 
-        /* 8. NÚT BẤM TRONG VÙNG NỘI DUNG CHÍNH (NHỎ GỌN) */
-        .main .stButton > button[kind="primary"] {
+        /* 8. NÚT BẤM TRONG VÙNG NỘI DUNG CHÍNH */
+        .main .stButton > button[kind="primary"],
+        div[role="dialog"] .stButton > button[kind="primary"] {
             background: linear-gradient(135deg, #388E3C 0%, #2E7D32 100%) !important;
             color: #FFFFFF !important;
             font-weight: 700 !important;
@@ -323,14 +455,17 @@ def inject_custom_css():
             border: none !important;
             border-radius: 7px !important;
             padding: 0.4rem 0.9rem !important;
-            min-height: 34px !important;
+            min-height: 36px !important;
         }
-        .main .stButton > button[kind="primary"] p {
+        .main .stButton > button[kind="primary"] p,
+        div[role="dialog"] .stButton > button[kind="primary"] p {
             color: #FFFFFF !important;
             font-weight: 700 !important;
             font-size: 0.82rem !important;
         }
-        .main .stButton > button[kind="secondary"], .stDownloadButton > button {
+        .main .stButton > button[kind="secondary"],
+        .stDownloadButton > button,
+        div[role="dialog"] .stButton > button[kind="secondary"] {
             background-color: #E8F5E9 !important;
             color: #0A2540 !important;
             font-weight: 600 !important;
@@ -338,9 +473,11 @@ def inject_custom_css():
             border: 1px solid #81C784 !important;
             border-radius: 7px !important;
             padding: 0.35rem 0.8rem !important;
-            min-height: 34px !important;
+            min-height: 36px !important;
         }
-        .main .stButton > button[kind="secondary"] p, .stDownloadButton > button p {
+        .main .stButton > button[kind="secondary"] p,
+        .stDownloadButton > button p,
+        div[role="dialog"] .stButton > button[kind="secondary"] p {
             color: #0A2540 !important;
             font-weight: 600 !important;
             font-size: 0.80rem !important;
@@ -503,7 +640,7 @@ def inject_custom_css():
         .text-right { text-align: right !important; font-family: 'JetBrains Mono', monospace; font-size: 0.75rem; }
         .text-center { text-align: center !important; }
 
-        /* 12. DANH SÁCH TỔNG QUAN LOT DẠNG COMPACT LIST (GIỐNG ẢNH MẪU TEAM SETTINGS) */
+        /* 12. DANH SÁCH TỔNG QUAN LOT DẠNG COMPACT LIST */
         .overview-list-card {
             background-color: #FFFFFF;
             border: 1px solid #DCEEE0;
@@ -625,12 +762,13 @@ def format_status_badge_html(status_val: str) -> str:
 
 inject_custom_css()
 init_db()
+render_pending_popup()
 
 all_setups = load_all_setups()
 hist_df_master = load_stage2_history()
 
 # ==============================================================================
-# THANH MENU DỌC BÊN TRÁI (5 NÚT BẤM TIẾNG ANH ĐỀU NHAU 100%)
+# THANH MENU DỌC BÊN TRÁI (DÙNG ON_CLICK ĐỂ CHUYỂN TRANG TRONG 1 LẦN TẢI)
 # ==============================================================================
 MENU_ITEMS = [
     ("1. Lot Evaluation", ":material/science:"),
@@ -643,6 +781,11 @@ MENU_ITEMS = [
 if "active_menu_page" not in st.session_state:
     st.session_state["active_menu_page"] = "1. Lot Evaluation"
 
+
+def _switch_menu_page(target_page: str):
+    st.session_state["active_menu_page"] = target_page
+
+
 with st.sidebar:
     render_html("""
     <div class="sidebar-brand">
@@ -654,14 +797,14 @@ with st.sidebar:
 
     for item_label, item_icon in MENU_ITEMS:
         is_active = (st.session_state["active_menu_page"] == item_label)
-        if st.button(
+        st.button(
             f"{item_icon}  {item_label}",
             key=f"nav_btn_{item_label}",
             type="primary" if is_active else "secondary",
-            use_container_width=True
-        ):
-            st.session_state["active_menu_page"] = item_label
-            st.rerun()
+            use_container_width=True,
+            on_click=_switch_menu_page,
+            args=(item_label,)
+        )
 
 page = st.session_state["active_menu_page"]
 
@@ -692,6 +835,132 @@ def convert_docx_to_pdf_bytes(docx_bytes):
 # ==============================================================================
 # TRANG 1: GIAI ĐOẠN 2 - ĐÁNH GIÁ MẪU HẰNG NGÀY (1. Lot Evaluation)
 # ==============================================================================
+@_fragment_decorator
+def render_stage2_workspace(active_setups: pd.DataFrame):
+    render_pending_popup()
+    with st.container(border=True):
+        st.markdown("#### :material/assignment: Thông tin đợt đánh giá")
+        c1, c2, c3 = st.columns([1.5, 1.5, 1])
+        with c1:
+            eval_test = st.selectbox(
+                "Chọn Xét nghiệm:",
+                active_setups["test_name"].unique().tolist(),
+                key="s2_test"
+            )
+        with c2:
+            eval_machine = st.selectbox(
+                "Dòng máy:",
+                active_setups[active_setups["test_name"] == eval_test]["machine"].unique().tolist(),
+                key="s2_mach"
+            )
+            eval_machine_id = ""
+            mach_df = active_setups[
+                (active_setups["test_name"] == eval_test) & (active_setups["machine"] == eval_machine)
+            ]
+            if not mach_df.empty and "machine_id" in mach_df.columns and pd.notna(mach_df["machine_id"].iloc[0]):
+                eval_machine_id = str(mach_df["machine_id"].iloc[0])
+        with c3:
+            eval_date = st.date_input("Ngày thực hiện:", value=date.today(), key="s2_date", format="DD/MM/YYYY")
+
+        c4, c5, c6 = st.columns([2, 1, 1])
+        with c4:
+            reagent_name = st.text_input(
+                "Loại hóa chất thay thế (Huyết học/HbA1c):",
+                placeholder="VD: CELL-DYN Diluent/Sheath... (Bỏ trống nếu là Sinh hóa)",
+                key="s2_reagent"
+            ).strip()
+        with c5:
+            lot_old = st.text_input("Số LOT cũ:", value="82273UD00", key="s2_lot_old").strip()
+        with c6:
+            lot_new = st.text_input("Số LOT mới:", value="86280UD00", key="s2_lot_new").strip()
+
+    test_levels_df = mach_df.sort_values("target_conc").reset_index(drop=True)
+    unit_s2 = str(test_levels_df["unit"].iloc[0]) if not test_levels_df.empty else "mmol/L"
+
+    st.markdown("### :material/biotech: Nhập kết quả mẫu")
+    flat_records_to_save = []
+    summary_table_rows = []
+
+    for idx, lv_row in test_levels_df.iterrows():
+        level_num = idx + 1
+        target_val = float(lv_row["target_conc"])
+        rl_pct_db = float(lv_row["rejection_limit"])
+        k_db = float(lv_row["k_factor"])
+        n_req = max(3, int(lv_row["n_samples"]))
+
+        with st.container(border=True):
+            head_col1, head_col2 = st.columns([2.2, 1.8])
+            with head_col1:
+                st.markdown(f"#### :material/target: Mức nồng độ: `{target_val:.3f} {unit_s2}`")
+                st.markdown(
+                    f"**Yêu cầu:** `{int(lv_row['n_samples'])} mẫu` &nbsp;|&nbsp; **Giới hạn RL:** `{rl_pct_db:.3f}%`"
+                )
+
+            default_samples_lv = pd.DataFrame(
+                [{"SID (Mã mẫu)": "", "Kết quả LOT cũ": 0.00, "Kết quả LOT mới": 0.00} for _ in range(n_req)]
+            )
+            in_col, out_col = st.columns([2.2, 1.8])
+            with in_col:
+                edited_samples = st.data_editor(
+                    default_samples_lv, num_rows="dynamic", use_container_width=True,
+                    column_config={
+                        "SID (Mã mẫu)": st.column_config.TextColumn("SID mẫu bệnh nhân"),
+                        "Kết quả LOT cũ": st.column_config.NumberColumn(f"LOT cũ ({lot_old})", format="%.3f"),
+                        "Kết quả LOT mới": st.column_config.NumberColumn(f"LOT mới ({lot_new})", format="%.3f"),
+                    }, key=f"s2_{eval_test}_{level_num}"
+                )
+            eval_res = evaluate_stage2_level(samples_df=edited_samples, rl_pct=rl_pct_db)
+
+            with out_col:
+                if not eval_res["has_data"]:
+                    st.info("Nhập ít nhất 1 cặp kết quả (> 0) để xem đánh giá.", icon=":material/info:")
+                else:
+                    m1, m2, m3 = st.columns(3)
+                    m1.metric("Trung bình d", f"{eval_res['mean_d']:.4f}")
+                    m2.metric("Trung bình độ chệch (%)", f"{eval_res['mean_d_pct']:.3f}%")
+                    m3.metric("Rejection Limit", f"{eval_res['rl_pct']:.3f}%")
+
+                    if eval_res["result"] == "PASS":
+                        render_html(f"""
+                        <div class="eval-result-box eval-result-pass">
+                            <div><strong>Kết luận:</strong> <span class="tabular-nums">{eval_res['mean_d_pct']:.3f}% &lt; {eval_res['rl_pct']:.3f}%</span></div>
+                            {format_status_badge_html('PASS')}
+                        </div>
+                        """)
+                    else:
+                        render_html(f"""
+                        <div class="eval-result-box eval-result-fail">
+                            <div><strong>Kết luận:</strong> <span class="tabular-nums">{eval_res['mean_d_pct']:.3f}% &ge; {eval_res['rl_pct']:.3f}%</span></div>
+                            {format_status_badge_html('FAIL')}
+                        </div>
+                        """)
+
+                    for _, d_row in eval_res["details"].iterrows():
+                        flat_records_to_save.append({
+                            "eval_date": str(eval_date), "test_name": eval_test, "machine": eval_machine,
+                            "machine_id": eval_machine_id,
+                            "unit": unit_s2, "lot_old": lot_old, "lot_new": lot_new,
+                            "level_name": f"Level {level_num}", "target_conc": target_val,
+                            "sid": d_row["SID"], "val_old": d_row["LOT_old_val"], "val_new": d_row["LOT_new_val"],
+                            "diff_d": d_row["d"],
+                            "mean_d": eval_res["mean_d"], "mean_d_pct": eval_res["mean_d_pct"],
+                            "rl_pct": eval_res["rl_pct"], "k_factor": k_db,
+                            "status": eval_res["result"], "reagent_name": reagent_name
+                        })
+                    summary_table_rows.append({"Kết quả": eval_res["result"]})
+
+    if summary_table_rows:
+        st.write("")
+        if st.button(":material/save: Lưu kết quả vào lịch sử", type="primary", use_container_width=True):
+            save_stage2_evaluation(flat_records_to_save)
+            queue_popup(
+                "Lưu kết quả thành công!",
+                f"Đã lưu biên bản đánh giá <b>{eval_test}</b> ({eval_machine}) — LOT: <b>{lot_old} ➔ {lot_new}</b> vào lịch sử.<br>Bạn có thể sang mục <b>2. Evaluation History</b> để xuất file Word hoặc PDF.",
+                "success"
+            )
+            st.rerun()
+
+
 if page == "1. Lot Evaluation":
     render_page_banner(
         "Đánh giá Mẫu thực tế (Stage 2)",
@@ -702,117 +971,11 @@ if page == "1. Lot Evaluation":
     if active_setups.empty:
         st.warning("Chưa có cấu hình xét nghiệm nào. Vui lòng chọn mục **4. Parameter Setup** ở thanh menu bên trái để thiết lập thông số ban đầu!", icon=":material/warning:")
     else:
-        with st.container(border=True):
-            st.markdown("#### :material/assignment: Thông tin đợt đánh giá")
-            c1, c2, c3 = st.columns([1.5, 1.5, 1])
-            with c1:
-                eval_test = st.selectbox("Chọn Xét nghiệm:", active_setups["test_name"].unique().tolist(),
-                                         key="s2_test")
-            with c2:
-                eval_machine = st.selectbox("Dòng máy:", active_setups[active_setups["test_name"] == eval_test][
-                    "machine"].unique().tolist(), key="s2_mach")
-                eval_machine_id = ""
-                mach_df = active_setups[
-                    (active_setups["test_name"] == eval_test) & (active_setups["machine"] == eval_machine)]
-                if not mach_df.empty and "machine_id" in mach_df.columns and pd.notna(mach_df["machine_id"].iloc[0]):
-                    eval_machine_id = str(mach_df["machine_id"].iloc[0])
-            with c3:
-                eval_date = st.date_input("Ngày thực hiện:", value=date.today(), key="s2_date", format="DD/MM/YYYY")
-
-            c4, c5, c6 = st.columns([2, 1, 1])
-            with c4:
-                reagent_name = st.text_input("Loại hóa chất thay thế (Huyết học/HbA1c):",
-                                             placeholder="VD: CELL-DYN Diluent/Sheath... (Bỏ trống nếu là Sinh hóa)",
-                                             key="s2_reagent").strip()
-            with c5:
-                lot_old = st.text_input("Số LOT cũ:", value="82273UD00", key="s2_lot_old").strip()
-            with c6:
-                lot_new = st.text_input("Số LOT mới:", value="86280UD00", key="s2_lot_new").strip()
-
-        test_levels_df = mach_df.sort_values("target_conc").reset_index(drop=True)
-        unit_s2 = str(test_levels_df["unit"].iloc[0]) if not test_levels_df.empty else "mmol/L"
-
-        st.markdown("### :material/biotech: Nhập kết quả mẫu")
-        flat_records_to_save = []
-        summary_table_rows = []
-
-        for idx, lv_row in test_levels_df.iterrows():
-            level_num = idx + 1
-            target_val = float(lv_row["target_conc"])
-            rl_pct_db = float(lv_row["rejection_limit"])
-            k_db = float(lv_row["k_factor"])
-            n_req = max(3, int(lv_row["n_samples"]))
-
-            with st.container(border=True):
-                head_col1, head_col2 = st.columns([2.2, 1.8])
-                with head_col1:
-                    st.markdown(f"#### :material/target: Mức nồng độ: `{target_val:.3f} {unit_s2}`")
-                    st.markdown(
-                        f"**Yêu cầu:** `{int(lv_row['n_samples'])} mẫu` &nbsp;|&nbsp; **Giới hạn RL:** `{rl_pct_db:.3f}%`")
-
-                default_samples_lv = pd.DataFrame(
-                    [{"SID (Mã mẫu)": "", "Kết quả LOT cũ": 0.00, "Kết quả LOT mới": 0.00} for _ in range(n_req)])
-                in_col, out_col = st.columns([2.2, 1.8])
-                with in_col:
-                    edited_samples = st.data_editor(
-                        default_samples_lv, num_rows="dynamic", use_container_width=True,
-                        column_config={
-                            "SID (Mã mẫu)": st.column_config.TextColumn("SID mẫu bệnh nhân"),
-                            "Kết quả LOT cũ": st.column_config.NumberColumn(f"LOT cũ ({lot_old})", format="%.3f"),
-                            "Kết quả LOT mới": st.column_config.NumberColumn(f"LOT mới ({lot_new})", format="%.3f"),
-                        }, key=f"s2_{eval_test}_{level_num}"
-                    )
-                eval_res = evaluate_stage2_level(samples_df=edited_samples, rl_pct=rl_pct_db)
-
-                with out_col:
-                    if not eval_res["has_data"]:
-                        st.info("Nhập ít nhất 1 cặp kết quả (> 0) để xem đánh giá.", icon=":material/info:")
-                    else:
-                        m1, m2, m3 = st.columns(3)
-                        m1.metric("Trung bình d", f"{eval_res['mean_d']:.4f}")
-                        m2.metric("Trung bình độ chệch (%)", f"{eval_res['mean_d_pct']:.3f}%")
-                        m3.metric("Rejection Limit", f"{eval_res['rl_pct']:.3f}%")
-
-                        if eval_res["result"] == "PASS":
-                            render_html(f"""
-                            <div class="eval-result-box eval-result-pass">
-                                <div><strong>Kết luận:</strong> <span class="tabular-nums">{eval_res['mean_d_pct']:.3f}% &lt; {eval_res['rl_pct']:.3f}%</span></div>
-                                {format_status_badge_html('PASS')}
-                            </div>
-                            """)
-                        else:
-                            render_html(f"""
-                            <div class="eval-result-box eval-result-fail">
-                                <div><strong>Kết luận:</strong> <span class="tabular-nums">{eval_res['mean_d_pct']:.3f}% &ge; {eval_res['rl_pct']:.3f}%</span></div>
-                                {format_status_badge_html('FAIL')}
-                            </div>
-                            """)
-
-                        for _, d_row in eval_res["details"].iterrows():
-                            flat_records_to_save.append({
-                                "eval_date": str(eval_date), "test_name": eval_test, "machine": eval_machine,
-                                "machine_id": eval_machine_id,
-                                "unit": unit_s2, "lot_old": lot_old, "lot_new": lot_new,
-                                "level_name": f"Level {level_num}", "target_conc": target_val,
-                                "sid": d_row["SID"], "val_old": d_row["LOT_old_val"], "val_new": d_row["LOT_new_val"],
-                                "diff_d": d_row["d"],
-                                "mean_d": eval_res["mean_d"], "mean_d_pct": eval_res["mean_d_pct"],
-                                "rl_pct": eval_res["rl_pct"], "k_factor": k_db,
-                                "status": eval_res["result"], "reagent_name": reagent_name
-                            })
-                        summary_table_rows.append({"Kết quả": eval_res["result"]})
-
-        if summary_table_rows:
-            st.write("")
-            if st.button(":material/save: Lưu kết quả vào lịch sử", type="primary", use_container_width=True):
-                save_stage2_evaluation(flat_records_to_save)
-                st.success("Đã lưu biên bản đánh giá! Vui lòng chọn mục **2. Evaluation History** ở thanh menu bên trái để xuất file Word/PDF.", icon=":material/check_circle:")
-                time.sleep(0.5)
-                st.rerun()
+        render_stage2_workspace(active_setups)
 
 
 # ==============================================================================
-# TRANG 2: LỊCH SỬ ĐÁNH GIÁ - KHUNG NHỎ GỌN, CHỮ NHỎ (2. Evaluation History)
+# TRANG 2: LỊCH SỬ ĐÁNH GIÁ - KHUNG NHỎ GỌN + POP-UP (2. Evaluation History)
 # ==============================================================================
 elif page == "2. Evaluation History":
     render_page_banner(
@@ -825,7 +988,8 @@ elif page == "2. Evaluation History":
     if hist_df.empty:
         st.info("Chưa có đợt đánh giá nào được lưu.", icon=":material/info:")
     else:
-        hist_df['eval_date'] = pd.to_datetime(hist_df['eval_date'])
+        hist_df['eval_date'] = pd.to_datetime(hist_df['eval_date'], errors='coerce')
+        hist_df = hist_df.dropna(subset=['eval_date'])
         hist_df = hist_df.sort_values(by=['eval_date', 'created_at'], ascending=[False, False])
         hist_df['YearMonth'] = hist_df['eval_date'].dt.strftime('%m / %Y')
         year_months = hist_df['YearMonth'].unique().tolist()
@@ -840,8 +1004,8 @@ elif page == "2. Evaluation History":
                 t_name = first_row['test_name']
                 mach = first_row['machine']
                 mach_id = first_row.get('machine_id', '')
-                l_old = first_row['lot_old']
-                l_new = first_row['lot_new']
+                l_old = clean_lot_str(first_row['lot_old'])
+                l_new = clean_lot_str(first_row['lot_new'])
                 reagent = str(first_row.get('reagent_name', '')).strip()
                 if reagent.lower() == 'nan':
                     reagent = ''
@@ -871,11 +1035,12 @@ elif page == "2. Evaluation History":
                     rows_html = []
                     for _, r in group.iterrows():
                         badge_cell = format_status_badge_html(r['status'])
+                        sid_clean = clean_lot_str(r['sid'])
                         rows_html.append(f"""
                         <tr>
                             <td class="text-left">{r['level_name']}</td>
                             <td class="text-right">{float(r['target_conc']):.3f}</td>
-                            <td class="text-left">{r['sid']}</td>
+                            <td class="text-left">{sid_clean}</td>
                             <td class="text-right">{float(r['val_old']):.3f}</td>
                             <td class="text-right">{float(r['val_new']):.3f}</td>
                             <td class="text-right">{float(r['diff_d']):.3f}</td>
@@ -912,13 +1077,15 @@ elif page == "2. Evaluation History":
 
                     col_word, col_pdf, col_del = st.columns([1, 1, 1])
 
+                    setup_df = all_setups[(all_setups['test_name'] == t_name) & (all_setups['machine'] == mach)]
+                    docx_bytes_cached = get_cached_report_docx_bytes(
+                        e_date_str, t_name, unit, mach, mach_id, reagent, l_old, l_new, setup_df, group
+                    )
+
                     with col_word:
-                        setup_df = all_setups[(all_setups['test_name'] == t_name) & (all_setups['machine'] == mach)]
-                        docx_file = generate_report_docx(e_date_str, t_name, unit, mach, mach_id, reagent, l_old, l_new,
-                                                         setup_df, group)
                         st.download_button(
                             label=":material/description: Xuất file Word",
-                            data=docx_file,
+                            data=docx_bytes_cached,
                             file_name=f"LotToLot_{t_name}_{l_old}_{l_new}.docx",
                             mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
                             key=f"dl_word_{created_at}",
@@ -929,13 +1096,23 @@ elif page == "2. Evaluation History":
                         if f"pdf_ready_{created_at}" not in st.session_state:
                             if st.button(":material/picture_as_pdf: Tạo file PDF", key=f"create_pdf_{created_at}", use_container_width=True):
                                 with st.spinner("Đang vẽ PDF..."):
-                                    pdf_bytes = convert_docx_to_pdf_bytes(docx_file.getvalue())
+                                    pdf_bytes = convert_docx_to_pdf_bytes(docx_bytes_cached)
                                     if pdf_bytes:
                                         st.session_state[f"pdf_bytes_{created_at}"] = pdf_bytes
                                         st.session_state[f"pdf_ready_{created_at}"] = True
+                                        queue_popup(
+                                            "Tạo file PDF thành công!",
+                                            f"Đã khởi tạo xong file PDF cho xét nghiệm <b>{t_name}</b> (LOT: {l_old} ➔ {l_new}). Bạn hãy bấm nút <b>Tải PDF xuống</b> để lưu file.",
+                                            "success"
+                                        )
                                         st.rerun()
                                     else:
-                                        st.error("Chưa cài LibreOffice trên Cloud!", icon=":material/error:")
+                                        queue_popup(
+                                            "Không thể tạo PDF",
+                                            "Môi trường Cloud hiện chưa cài đặt LibreOffice. Vui lòng sử dụng nút <b>Xuất file Word</b>.",
+                                            "error"
+                                        )
+                                        st.rerun()
                         else:
                             st.download_button(
                                 label=":material/download: Tải PDF xuống",
@@ -947,25 +1124,13 @@ elif page == "2. Evaluation History":
                             )
 
                     with col_del:
-                        if f"confirm_del_{created_at}" not in st.session_state:
-                            st.session_state[f"confirm_del_{created_at}"] = False
-
-                        if not st.session_state[f"confirm_del_{created_at}"]:
-                            if st.button(":material/delete: Xóa đợt này", key=f"del_hist_{created_at}", use_container_width=True):
-                                st.session_state[f"confirm_del_{created_at}"] = True
+                        if st.button(":material/delete: Xóa đợt này", key=f"del_hist_{created_at}", use_container_width=True):
+                            if _dialog_decorator is not None:
+                                confirm_delete_eval_modal(created_at, t_name, display_date_str, l_old, l_new)
+                            else:
+                                delete_stage2_evaluation(created_at)
+                                queue_popup("Đã chuyển vào Thùng rác", f"Đã xóa đợt đánh giá {t_name}.", "warning")
                                 st.rerun()
-                        else:
-                            st.warning("Bạn có chắc chắn muốn xóa? (Dữ liệu sẽ vào Thùng rác)", icon=":material/warning:")
-                            c_yes, c_no = st.columns(2)
-                            with c_yes:
-                                if st.button(":material/check: Xác nhận", key=f"yes_del_{created_at}", type="primary", use_container_width=True):
-                                    delete_stage2_evaluation(created_at)
-                                    st.session_state[f"confirm_del_{created_at}"] = False
-                                    st.rerun()
-                            with c_no:
-                                if st.button(":material/close: Hủy", key=f"no_del_{created_at}", use_container_width=True):
-                                    st.session_state[f"confirm_del_{created_at}"] = False
-                                    st.rerun()
 
     st.write("")
     with st.expander(":material/restore_from_trash: Thùng rác (Khôi phục hoặc xóa vĩnh viễn)", expanded=False):
@@ -976,34 +1141,151 @@ elif page == "2. Evaluation History":
             grouped_trash = trash_df.groupby('created_at', sort=False)
             for c_at, group in grouped_trash:
                 first = group.iloc[0]
-                disp_date = pd.to_datetime(first['eval_date']).strftime('%d/%m/%Y')
+                disp_date = pd.to_datetime(first['eval_date'], errors='coerce').strftime('%d/%m/%Y')
                 t_name = first['test_name']
+                l_old_tr = clean_lot_str(first['lot_old'])
+                l_new_tr = clean_lot_str(first['lot_new'])
                 reagent = str(first.get('reagent_name', '')).strip()
                 reagent_str = f" ({reagent})" if reagent and reagent.lower() != 'nan' else ""
 
                 c_trash1, c_restore, c_delete = st.columns([3, 1, 1])
                 with c_trash1:
-                    st.markdown(f"<span style='font-size:0.80rem;'><strong>{disp_date}</strong> &nbsp;|&nbsp; <strong>{t_name}</strong>{reagent_str} &nbsp;|&nbsp; LOT: <code>{first['lot_old']} ➔ {first['lot_new']}</code></span>", unsafe_allow_html=True)
+                    st.markdown(f"<span style='font-size:0.80rem;'><strong>{disp_date}</strong> &nbsp;|&nbsp; <strong>{t_name}</strong>{reagent_str} &nbsp;|&nbsp; LOT: <code>{l_old_tr} ➔ {l_new_tr}</code></span>", unsafe_allow_html=True)
 
                 with c_restore:
                     if st.button(":material/restore: Khôi phục", key=f"restore_{c_at}", use_container_width=True):
                         restore_stage2_evaluation(c_at)
-                        st.success("Đã khôi phục!", icon=":material/check_circle:")
-                        time.sleep(0.5)
+                        queue_popup(
+                            "Khôi phục thành công!",
+                            f"Đã khôi phục đợt đánh giá <b>{t_name}{reagent_str}</b> ngày <b>{disp_date}</b> (LOT: {l_old_tr} ➔ {l_new_tr}) về lại danh sách Lịch sử.",
+                            "success"
+                        )
                         st.rerun()
 
                 with c_delete:
                     if st.button(":material/delete_forever: Xóa hẳn", key=f"perm_del_{c_at}", use_container_width=True):
                         permanently_delete_stage2_evaluation(c_at)
-                        st.error("Đã xóa vĩnh viễn!", icon=":material/delete:")
-                        time.sleep(0.5)
+                        queue_popup(
+                            "Đã xóa vĩnh viễn!",
+                            f"Đã xóa vĩnh viễn đợt đánh giá <b>{t_name}{reagent_str}</b> ngày <b>{disp_date}</b> khỏi Thùng rác.",
+                            "error"
+                        )
                         st.rerun()
 
 
 # ==============================================================================
 # TRANG 3: TỔNG QUAN LOT - XẾP TRÊN/DƯỚI, BẤM XỔ XUỐNG + SEARCH BOX (3. Lot Overview)
 # ==============================================================================
-elif page == "3. Lot Overview":
+@_fragment_decorator
+def render_collapsible_overview_section(df_section, section_title, section_icon, group_by_col, search_key, placeholder_text):
+    total_items = df_section[group_by_col].nunique() if not df_section.empty else 0
+    total_evals = len(df_section)
+
+    with st.expander(f"{section_icon} {section_title}  —  {total_items} danh mục ({total_evals} đợt đánh giá)", expanded=False):
+        if df_section.empty:
+            st.info("Chưa có dữ liệu trong phân hệ này.", icon=":material/info:")
+            return
+
+        search_query = st.text_input(
+            "Tìm kiếm:",
+            placeholder=placeholder_text,
+            key=search_key,
+            label_visibility="collapsed"
+        ).strip().lower()
+
+        filtered_df = df_section.copy()
+        if search_query:
+            mask = (
+                filtered_df[group_by_col].astype(str).str.lower().str.contains(search_query, na=False) |
+                filtered_df['test_name'].astype(str).str.lower().str.contains(search_query, na=False) |
+                filtered_df['machine'].astype(str).str.lower().str.contains(search_query, na=False) |
+                filtered_df['lot_old'].astype(str).str.lower().str.contains(search_query, na=False) |
+                filtered_df['lot_new'].astype(str).str.lower().str.contains(search_query, na=False) |
+                filtered_df['date_str'].astype(str).str.lower().str.contains(search_query, na=False)
+            )
+            filtered_df = filtered_df[mask]
+
+        if filtered_df.empty:
+            st.warning(f"Không tìm thấy đợt Lot-to-Lot nào khớp với từ khóa **'{search_query}'**.", icon=":material/search_off:")
+            return
+
+        for mach in sorted(filtered_df['machine'].unique()):
+            mach_df = filtered_df[filtered_df['machine'] == mach]
+            items_html = []
+
+            for item_name, group in mach_df.groupby(group_by_col, sort=False):
+                latest_eval = group.iloc[0]
+                first_char = str(item_name).strip()[0].upper() if str(item_name).strip() else "T"
+                latest_badge = format_status_badge_html(latest_eval['status'])
+                latest_date = latest_eval['date_str']
+                latest_lot = clean_lot_str(latest_eval['lot_new'])
+                eval_count = len(group)
+
+                open_attr = "open" if search_query else ""
+
+                sub_rows = []
+                for _, r in group.iterrows():
+                    b_html = format_status_badge_html(r['status'])
+                    r_lot_old = clean_lot_str(r['lot_old'])
+                    r_lot_new = clean_lot_str(r['lot_new'])
+                    sub_rows.append(f"""
+                    <tr>
+                        <td class="text-left">{r['date_str']}</td>
+                        <td class="text-left">{r['test_name']}</td>
+                        <td class="text-right">{r_lot_old}</td>
+                        <td class="text-right">{r_lot_new}</td>
+                        <td class="text-center">{b_html}</td>
+                    </tr>
+                    """)
+
+                items_html.append(f"""
+                <details class="overview-item" {open_attr}>
+                    <summary class="overview-row">
+                        <div class="item-name-cell">
+                            <span class="item-avatar">{first_char}</span>
+                            <span>{item_name}</span>
+                        </div>
+                        <div class="item-lot-cell">{latest_lot}</div>
+                        <div class="item-date-cell">{latest_date}</div>
+                        <div>{latest_badge}</div>
+                        <div class="item-action-cell">{eval_count} đợt ▾</div>
+                    </summary>
+                    <div class="overview-subbox">
+                        <div class="lab-table-wrapper">
+                            <table class="lab-table">
+                                <thead>
+                                    <tr>
+                                        <th class="text-left">Ngày thay LOT</th>
+                                        <th class="text-left">Xét nghiệm</th>
+                                        <th class="text-right">LOT cũ</th>
+                                        <th class="text-right">LOT mới</th>
+                                        <th class="text-center">Kết quả</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {"".join(sub_rows)}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </details>
+                """)
+
+            render_html(f"""
+            <div class="overview-list-card">
+                <div class="overview-group-header">
+                    <div class="overview-mach-title">🖨️ Máy: {mach}</div>
+                    <div>LOT đang dùng</div>
+                    <div>Cập nhật</div>
+                    <div>Trạng thái</div>
+                    <div class="text-right">Lịch sử</div>
+                </div>
+                {"".join(items_html)}
+            </div>
+            """)
+
+
+if page == "3. Lot Overview":
     render_page_banner(
         "Tổng quan LOT (Lot Overview)",
         "Bấm vào từng phân hệ bên dưới để mở danh sách hiện trạng hóa chất và gõ vào ô tìm kiếm để lọc nhanh các đợt đánh giá Lot-to-Lot."
@@ -1015,7 +1297,8 @@ elif page == "3. Lot Overview":
     else:
         df_hist_dash['reagent_name'] = df_hist_dash['reagent_name'].fillna('').astype(str).str.strip()
         df_hist_dash.loc[df_hist_dash['reagent_name'].str.lower() == 'nan', 'reagent_name'] = ''
-        df_hist_dash['eval_date_obj'] = pd.to_datetime(df_hist_dash['eval_date'])
+        df_hist_dash['eval_date_obj'] = pd.to_datetime(df_hist_dash['eval_date'], errors='coerce')
+        df_hist_dash = df_hist_dash.dropna(subset=['eval_date_obj'])
         df_hist_dash['date_str'] = df_hist_dash['eval_date_obj'].dt.strftime('%d/%m/%Y')
 
         df_unique_evals = df_hist_dash.drop_duplicates(subset=['created_at']).copy()
@@ -1024,113 +1307,6 @@ elif page == "3. Lot Overview":
         df_sh = df_unique_evals[df_unique_evals['reagent_name'] == '']
         df_hh = df_unique_evals[df_unique_evals['reagent_name'] != '']
 
-        def render_collapsible_overview_section(df_section, section_title, section_icon, group_by_col, search_key, placeholder_text):
-            total_items = df_section[group_by_col].nunique() if not df_section.empty else 0
-            total_evals = len(df_section)
-
-            with st.expander(f"{section_icon} {section_title}  —  {total_items} danh mục ({total_evals} đợt đánh giá)", expanded=False):
-                if df_section.empty:
-                    st.info("Chưa có dữ liệu trong phân hệ này.", icon=":material/info:")
-                    return
-
-                search_query = st.text_input(
-                    "Tìm kiếm:",
-                    placeholder=placeholder_text,
-                    key=search_key,
-                    label_visibility="collapsed"
-                ).strip().lower()
-
-                filtered_df = df_section.copy()
-                if search_query:
-                    mask = (
-                        filtered_df[group_by_col].astype(str).str.lower().str.contains(search_query, na=False) |
-                        filtered_df['test_name'].astype(str).str.lower().str.contains(search_query, na=False) |
-                        filtered_df['machine'].astype(str).str.lower().str.contains(search_query, na=False) |
-                        filtered_df['lot_old'].astype(str).str.lower().str.contains(search_query, na=False) |
-                        filtered_df['lot_new'].astype(str).str.lower().str.contains(search_query, na=False) |
-                        filtered_df['date_str'].astype(str).str.lower().str.contains(search_query, na=False)
-                    )
-                    filtered_df = filtered_df[mask]
-
-                if filtered_df.empty:
-                    st.warning(f"Không tìm thấy đợt Lot-to-Lot nào khớp với từ khóa **'{search_query}'**.", icon=":material/search_off:")
-                    return
-
-                for mach in sorted(filtered_df['machine'].unique()):
-                    mach_df = filtered_df[filtered_df['machine'] == mach]
-                    items_html = []
-
-                    for item_name, group in mach_df.groupby(group_by_col, sort=False):
-                        latest_eval = group.iloc[0]
-                        first_char = str(item_name).strip()[0].upper() if str(item_name).strip() else "T"
-                        latest_badge = format_status_badge_html(latest_eval['status'])
-                        latest_date = latest_eval['date_str']
-                        latest_lot = latest_eval['lot_new']
-                        eval_count = len(group)
-
-                        # Tự động mở chi tiết lịch sử nếu người dùng đang gõ từ khóa tìm kiếm
-                        open_attr = "open" if search_query else ""
-
-                        sub_rows = []
-                        for _, r in group.iterrows():
-                            b_html = format_status_badge_html(r['status'])
-                            sub_rows.append(f"""
-                            <tr>
-                                <td class="text-left">{r['date_str']}</td>
-                                <td class="text-left">{r['test_name']}</td>
-                                <td class="text-right">{r['lot_old']}</td>
-                                <td class="text-right">{r['lot_new']}</td>
-                                <td class="text-center">{b_html}</td>
-                            </tr>
-                            """)
-
-                        items_html.append(f"""
-                        <details class="overview-item" {open_attr}>
-                            <summary class="overview-row">
-                                <div class="item-name-cell">
-                                    <span class="item-avatar">{first_char}</span>
-                                    <span>{item_name}</span>
-                                </div>
-                                <div class="item-lot-cell">{latest_lot}</div>
-                                <div class="item-date-cell">{latest_date}</div>
-                                <div>{latest_badge}</div>
-                                <div class="item-action-cell">{eval_count} đợt ▾</div>
-                            </summary>
-                            <div class="overview-subbox">
-                                <div class="lab-table-wrapper">
-                                    <table class="lab-table">
-                                        <thead>
-                                            <tr>
-                                                <th class="text-left">Ngày thay LOT</th>
-                                                <th class="text-left">Xét nghiệm</th>
-                                                <th class="text-right">LOT cũ</th>
-                                                <th class="text-right">LOT mới</th>
-                                                <th class="text-center">Kết quả</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            {"".join(sub_rows)}
-                                        </tbody>
-                                    </table>
-                                </div>
-                            </div>
-                        </details>
-                        """)
-
-                    render_html(f"""
-                    <div class="overview-list-card">
-                        <div class="overview-group-header">
-                            <div class="overview-mach-title">🖨️ Máy: {mach}</div>
-                            <div>LOT đang dùng</div>
-                            <div>Cập nhật</div>
-                            <div>Trạng thái</div>
-                            <div class="text-right">Lịch sử</div>
-                        </div>
-                        {"".join(items_html)}
-                    </div>
-                    """)
-
-        # 1. PHẦN TRÊN: SINH HÓA - MIỄN DỊCH
         render_collapsible_overview_section(
             df_section=df_sh,
             section_title="Sinh hóa - Miễn dịch",
@@ -1140,7 +1316,6 @@ elif page == "3. Lot Overview":
             placeholder_text="🔍 Tìm xét nghiệm, dòng máy, số LOT hoặc ngày (VD: GLUCOSE, Alinity, 70058, 03/11...)"
         )
 
-        # 2. PHẦN DƯỚI: HUYẾT HỌC - HBA1C
         render_collapsible_overview_section(
             df_section=df_hh,
             section_title="Huyết học - HbA1c",
@@ -1154,13 +1329,9 @@ elif page == "3. Lot Overview":
 # ==============================================================================
 # TRANG 4: GIAI ĐOẠN 1 - SETUP THÔNG SỐ (4. Parameter Setup)
 # ==============================================================================
-elif page == "4. Parameter Setup":
-    render_page_banner(
-        "Cấu hình Thông số (Stage 1)",
-        "Thiết lập nồng độ đích, TEa%, Swrl% và Sr% để hệ thống tra bảng tính số lượng mẫu (n), lực thống kê (Power) và giới hạn từ chối (RL)."
-    )
-
-    all_setups_for_dropdown = all_setups
+@_fragment_decorator
+def render_stage1_workspace(all_setups_for_dropdown: pd.DataFrame):
+    render_pending_popup()
     with st.container(border=True):
         st.markdown("#### :material/tune: Thông tin xét nghiệm & thiết bị")
         col1, col2, col3, col4, col5 = st.columns([1.5, 1.5, 1.2, 1, 1.5])
@@ -1290,9 +1461,20 @@ elif page == "4. Parameter Setup":
 
         if st.button(":material/save: Lưu cấu hình vào Database", type="primary", use_container_width=True):
             save_test_setup(test_name, machine_name, machine_id, pd.DataFrame(chosen_final_rows))
-            st.success(f"Đã lưu thành công thông số và Mã thiết bị cho {test_name} - {machine_name}!", icon=":material/check_circle:")
-            time.sleep(0.5)
+            queue_popup(
+                "Lưu cấu hình thành công!",
+                f"Đã lưu thành công thông số Stage 1 và Mã thiết bị cho xét nghiệm <b>{test_name}</b> — Máy: <b>{machine_name}</b>.",
+                "success"
+            )
             st.rerun()
+
+
+if page == "4. Parameter Setup":
+    render_page_banner(
+        "Cấu hình Thông số (Stage 1)",
+        "Thiết lập nồng độ đích, TEa%, Swrl% và Sr% để hệ thống tra bảng tính số lượng mẫu (n), lực thống kê (Power) và giới hạn từ chối (RL)."
+    )
+    render_stage1_workspace(all_setups)
 
 
 # ==============================================================================
@@ -1313,9 +1495,12 @@ elif page == "5. Test Directory":
                 if "test_name" in df_import.columns and "target_conc" in df_import.columns:
                     st.info(f"Phát hiện **{len(df_import)}** dòng cấu hình hợp lệ.", icon=":material/info:")
                     if st.button(":material/check_circle: Bắt đầu Import Dữ liệu", type="primary", use_container_width=True):
-                        import_stage1_from_dataframe(df_import)
-                        st.success("Khôi phục thành công!", icon=":material/check_circle:")
-                        time.sleep(1)
+                        imported_cnt = import_stage1_from_dataframe(df_import)
+                        queue_popup(
+                            "Import dữ liệu thành công!",
+                            f"Đã khôi phục và cập nhật thành công <b>{imported_cnt}</b> dòng cấu hình Stage 1 vào cơ sở dữ liệu.",
+                            "success"
+                        )
                         st.rerun()
                 else:
                     st.error("File không đúng định dạng!", icon=":material/error:")
@@ -1335,7 +1520,11 @@ elif page == "5. Test Directory":
                 st.write("")
                 st.write("")
                 if st.button(":material/delete: Xóa cấu hình", use_container_width=True):
-                    delete_specific_setup(del_test, del_mach)
-                    st.rerun()
+                    if _dialog_decorator is not None:
+                        confirm_delete_setup_modal(del_test, del_mach)
+                    else:
+                        delete_specific_setup(del_test, del_mach)
+                        queue_popup("Đã xóa cấu hình", f"Đã xóa cấu hình {del_test} - {del_mach}.", "error")
+                        st.rerun()
     else:
         st.info("Chưa có cấu hình xét nghiệm nào được lưu.", icon=":material/info:")
