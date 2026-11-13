@@ -252,7 +252,7 @@ def inject_custom_css():
             fill: currentColor !important;
         }
 
-        /* 4. SIDEBAR MENU DỌC (TỰ ĐỘNG TRÀN TRANG CHÍNH KHI ĐÓNG) */
+        /* 4. SIDEBAR MENU DỌC (TỰ ĐỘNG THU GỌN VỀ 0PX & TRÀN TRANG CHÍNH KHI ĐÓNG) */
         [data-testid="stSidebar"] {
             background-color: #E6F4EA !important;
         }
@@ -266,6 +266,9 @@ def inject_custom_css():
             max-width: 0px !important;
             width: 0px !important;
             border-right: none !important;
+        }
+        [data-testid="stSidebar"] > div:first-child {
+            background-color: #E6F4EA !important;
         }
         .sidebar-brand {
             background-color: #FFFFFF;
@@ -356,7 +359,7 @@ def inject_custom_css():
             border-radius: 8px;
             padding: 10px 16px;
             margin-top: 4px;
-            margin-bottom: 14px;
+            margin-bottom: 12px;
             box-shadow: 0 1px 3px rgba(10, 37, 64, 0.03);
         }
         .page-banner-title {
@@ -370,6 +373,20 @@ def inject_custom_css():
             font-size: 0.8rem;
             font-weight: 500;
             margin: 0;
+        }
+
+        /* Thanh thông báo kết quả lọc tìm kiếm nhanh */
+        .search-result-pill {
+            background-color: #E6F4EA;
+            border: 1px solid #A5D6A7;
+            color: #1B5E20;
+            padding: 5px 12px;
+            border-radius: 6px;
+            font-size: 0.78rem;
+            font-weight: 600;
+            margin-top: -4px;
+            margin-bottom: 10px;
+            display: inline-block;
         }
 
         /* 6. KHỐI CARD TRẮNG & EXPANDER THU NHỎ NHƯ DANH SÁCH MẪU */
@@ -566,7 +583,7 @@ def inject_custom_css():
             border-radius: 6px;
             font-weight: 700;
             font-size: 0.82rem;
-            margin-top: 10px;
+            margin-top: 8px;
             margin-bottom: 6px;
         }
         .history-meta-bar {
@@ -980,23 +997,61 @@ if page == "1. Lot Evaluation":
 
 
 # ==============================================================================
-# TRANG 2: LỊCH SỬ ĐÁNH GIÁ - KHUNG NHỎ GỌN + POP-UP (2. Evaluation History)
+# TRANG 2: LỊCH SỬ ĐÁNH GIÁ + SEARCH BOX TRÊN CÙNG CHO ĐOÀN KIỂM TRA (2. Evaluation History)
 # ==============================================================================
-elif page == "2. Evaluation History":
-    render_page_banner(
-        "Lịch sử Đánh giá Mẫu thực tế",
-        "Tra cứu hồ sơ đánh giá Lot-to-Lot theo từng tháng, xuất biên bản báo cáo Word/PDF và khôi phục các bản ghi đã xóa."
-    )
-
+@_fragment_decorator
+def render_history_workspace(hist_df_master: pd.DataFrame, all_setups: pd.DataFrame):
+    render_pending_popup()
     hist_df = hist_df_master.copy()
 
     if hist_df.empty:
         st.info("Chưa có đợt đánh giá nào được lưu.", icon=":material/info:")
     else:
+        # THANH SEARCH BOX TRÊN CÙNG CHO ĐOÀN KIỂM TRA (Hỗ trợ gõ kết hợp Tên XN + Ngày + Máy + LOT)
+        hist_search = st.text_input(
+            "Tìm kiếm lịch sử đánh giá:",
+            placeholder="🔍 Tra cứu nhanh (nhập Ngày, Tên XN, Máy, Hóa chất hoặc số LOT — VD: 13/11, ALT 13/11, WBC Ruby 04/11, 980645...)",
+            key="search_eval_history_top",
+            label_visibility="collapsed"
+        ).strip().lower()
+
         hist_df['eval_date'] = pd.to_datetime(hist_df['eval_date'], errors='coerce')
         hist_df = hist_df.dropna(subset=['eval_date'])
         hist_df = hist_df.sort_values(by=['eval_date', 'created_at'], ascending=[False, False])
         hist_df['YearMonth'] = hist_df['eval_date'].dt.strftime('%m / %Y')
+        hist_df['display_date_str'] = hist_df['eval_date'].dt.strftime('%d/%m/%Y')
+        hist_df['e_date_str'] = hist_df['eval_date'].dt.strftime('%Y-%m-%d')
+
+        # Lọc đa từ khóa (mọi từ khóa gõ vào đều phải khớp trong cùng 1 đợt đánh giá)
+        search_tokens = hist_search.split() if hist_search else []
+        if search_tokens:
+            matched_created_at = []
+            for c_at, grp in hist_df.groupby('created_at', sort=False):
+                f_row = grp.iloc[0]
+                l_old_c = clean_lot_str(f_row['lot_old'])
+                l_new_c = clean_lot_str(f_row['lot_new'])
+                reag_c = str(f_row.get('reagent_name', '')).strip()
+                overall_ok = all(str(r['status']).upper() == 'PASS' for _, r in grp.iterrows())
+                st_label = "đạt pass" if overall_ok else "không đạt trượt fail"
+                sids_str = " ".join(clean_lot_str(s) for s in grp['sid'].tolist())
+
+                 searchable_blob = (
+                    f"{f_row['display_date_str']} {f_row['e_date_str']} {f_row['YearMonth']} "
+                    f"{f_row['test_name']} {f_row['machine']} {f_row.get('machine_id', '')} "
+                    f"{reag_c} {l_old_c} {l_new_c} {sids_str} {st_label}"
+                ).lower()
+
+                if all(tok in searchable_blob for tok in search_tokens):
+                    matched_created_at.append(c_at)
+
+            hist_df = hist_df[hist_df['created_at'].isin(matched_created_at)]
+
+            if hist_df.empty:
+                st.warning(f"Không tìm thấy biên bản đánh giá nào khớp với từ khóa **'{hist_search}'**.", icon=":material/search_off:")
+            else:
+                render_html(f'<div class="search-result-pill">🔍 Tìm thấy <b>{len(matched_created_at)}</b> đợt đánh giá khớp với từ khóa <b>"{hist_search}"</b></div>')
+
+        total_matched_groups = hist_df['created_at'].nunique()
         year_months = hist_df['YearMonth'].unique().tolist()
 
         for ym in year_months:
@@ -1014,8 +1069,8 @@ elif page == "2. Evaluation History":
                 reagent = str(first_row.get('reagent_name', '')).strip()
                 if reagent.lower() == 'nan':
                     reagent = ''
-                e_date_str = first_row['eval_date'].strftime('%Y-%m-%d')
-                display_date_str = first_row['eval_date'].strftime('%d/%m/%Y')
+                e_date_str = first_row['e_date_str']
+                display_date_str = first_row['display_date_str']
                 unit = first_row['unit']
 
                 overall_pass = all(str(r['status']).upper() == 'PASS' for _, r in group.iterrows())
@@ -1023,7 +1078,10 @@ elif page == "2. Evaluation History":
                 reagent_str = f" • {reagent}" if reagent else ""
                 expander_label = f":material/event: {display_date_str}  |  {t_name} ({mach}){reagent_str}  |  LOT: {l_old} ➔ {l_new}  [{status_text}]"
 
-                with st.expander(expander_label, expanded=False):
+                # Tự động mở sẵn khung chi tiết nếu đang tìm kiếm và có từ 1-3 kết quả
+                auto_expand = bool(search_tokens) and (total_matched_groups <= 3)
+
+                with st.expander(expander_label, expanded=auto_expand):
                     reagent_meta = f'<div><strong>Hóa chất:</strong> {reagent}</div>' if reagent else ''
                     overall_badge = format_status_badge_html("PASS" if overall_pass else "FAIL")
                     render_html(f"""
@@ -1178,157 +1236,190 @@ elif page == "2. Evaluation History":
                         st.rerun()
 
 
+elif page == "2. Evaluation History":
+    render_page_banner(
+        "Lịch sử Đánh giá Mẫu thực tế",
+        "Tra cứu hồ sơ đánh giá Lot-to-Lot theo từng tháng, xuất biên bản báo cáo Word/PDF và khôi phục các bản ghi đã xóa."
+    )
+    render_history_workspace(hist_df_master, all_setups)
+
+
 # ==============================================================================
-# TRANG 3: TỔNG QUAN LOT - XẾP TRÊN/DƯỚI, BẤM XỔ XUỐNG + SEARCH BOX (3. Lot Overview)
+# TRANG 3: TỔNG QUAN LOT + SEARCH BOX TRÊN CÙNG (3. Lot Overview)
 # ==============================================================================
 @_fragment_decorator
-def render_collapsible_overview_section(df_section, section_title, section_icon, group_by_col, search_key, placeholder_text):
-    total_items = df_section[group_by_col].nunique() if not df_section.empty else 0
-    total_evals = len(df_section)
+def render_overview_workspace(hist_df_master: pd.DataFrame):
+    df_hist_dash = hist_df_master.copy()
+    if df_hist_dash.empty:
+        st.info("Chưa có dữ liệu đánh giá.", icon=":material/info:")
+        return
 
-    with st.expander(f"{section_icon} {section_title}  —  {total_items} danh mục ({total_evals} đợt đánh giá)", expanded=False):
-        if df_section.empty:
-            st.info("Chưa có dữ liệu trong phân hệ này.", icon=":material/info:")
-            return
+    # THANH SEARCH BOX TỔNG TRÊN CÙNG CỦA TAB TỔNG QUAN LOT
+    global_overview_search = st.text_input(
+        "Tìm kiếm tổng quan LOT:",
+        placeholder="🔍 Tra cứu nhanh LOT đang dùng: Nhập tên xét nghiệm, hóa chất, dòng máy hoặc số LOT (VD: ALT Cobas, MAU Alinity, WBC Ruby)...",
+        key="search_overview_global_top",
+        label_visibility="collapsed"
+    ).strip().lower()
 
-        search_query = st.text_input(
-            "Tìm kiếm:",
-            placeholder=placeholder_text,
-            key=search_key,
-            label_visibility="collapsed"
-        ).strip().lower()
+    df_hist_dash['reagent_name'] = df_hist_dash['reagent_name'].fillna('').astype(str).str.strip()
+    df_hist_dash.loc[df_hist_dash['reagent_name'].str.lower() == 'nan', 'reagent_name'] = ''
+    df_hist_dash['eval_date_obj'] = pd.to_datetime(df_hist_dash['eval_date'], errors='coerce')
+    df_hist_dash = df_hist_dash.dropna(subset=['eval_date_obj'])
+    df_hist_dash['date_str'] = df_hist_dash['eval_date_obj'].dt.strftime('%d/%m/%Y')
 
-        filtered_df = df_section.copy()
-        if search_query:
-            mask = (
-                filtered_df[group_by_col].astype(str).str.lower().str.contains(search_query, na=False) |
-                filtered_df['test_name'].astype(str).str.lower().str.contains(search_query, na=False) |
-                filtered_df['machine'].astype(str).str.lower().str.contains(search_query, na=False) |
-                filtered_df['lot_old'].astype(str).str.lower().str.contains(search_query, na=False) |
-                filtered_df['lot_new'].astype(str).str.lower().str.contains(search_query, na=False) |
-                filtered_df['date_str'].astype(str).str.lower().str.contains(search_query, na=False)
-            )
-            filtered_df = filtered_df[mask]
+    df_unique_evals = df_hist_dash.drop_duplicates(subset=['created_at']).copy()
+    df_unique_evals = df_unique_evals.sort_values(by=['eval_date_obj', 'created_at'], ascending=[False, False])
 
-        if filtered_df.empty:
-            st.warning(f"Không tìm thấy đợt Lot-to-Lot nào khớp với từ khóa **'{search_query}'**.", icon=":material/search_off:")
-            return
+    df_sh = df_unique_evals[df_unique_evals['reagent_name'] == '']
+    df_hh = df_unique_evals[df_unique_evals['reagent_name'] != '']
 
-        for mach in sorted(filtered_df['machine'].unique()):
-            mach_df = filtered_df[filtered_df['machine'] == mach]
-            items_html = []
+    def filter_overview_df(df_in: pd.DataFrame, group_by_col: str, query_str: str) -> pd.DataFrame:
+        if not query_str or df_in.empty:
+            return df_in
+        tokens = query_str.split()
+        combined_series = (
+            df_in[group_by_col].astype(str) + " " +
+            df_in['test_name'].astype(str) + " " +
+            df_in['machine'].astype(str) + " " +
+            df_in['lot_old'].astype(str) + " " +
+            df_in['lot_new'].astype(str) + " " +
+            df_in['date_str'].astype(str)
+        ).str.lower()
+        mask = pd.Series(True, index=df_in.index)
+        for tok in tokens:
+            mask = mask & combined_series.str.contains(tok, regex=False, na=False)
+        return df_in[mask]
 
-            for item_name, group in mach_df.groupby(group_by_col, sort=False):
-                latest_eval = group.iloc[0]
-                first_char = str(item_name).strip()[0].upper() if str(item_name).strip() else "T"
-                latest_badge = format_status_badge_html(latest_eval['status'])
-                latest_date = latest_eval['date_str']
-                latest_lot = clean_lot_str(latest_eval['lot_new'])
-                eval_count = len(group)
+    def render_collapsible_overview_section(df_section, section_title, section_icon, group_by_col, search_key, placeholder_text):
+        # Áp dụng bộ lọc từ thanh Search tổng phía trên trước
+        df_after_global = filter_overview_df(df_section, group_by_col, global_overview_search)
+        total_items = df_after_global[group_by_col].nunique() if not df_after_global.empty else 0
+        total_evals = len(df_after_global)
 
-                open_attr = "open" if search_query else ""
+        # Tự động mở phân hệ nếu người dùng đang gõ trên thanh Search tổng và phân hệ này có kết quả khớp
+        auto_expand_section = bool(global_overview_search) and (total_evals > 0)
 
-                sub_rows = []
-                for _, r in group.iterrows():
-                    b_html = format_status_badge_html(r['status'])
-                    r_lot_old = clean_lot_str(r['lot_old'])
-                    r_lot_new = clean_lot_str(r['lot_new'])
-                    sub_rows.append(f"""
-                    <tr>
-                        <td class="text-left">{r['date_str']}</td>
-                        <td class="text-left">{r['test_name']}</td>
-                        <td class="text-right">{r_lot_old}</td>
-                        <td class="text-right">{r_lot_new}</td>
-                        <td class="text-center">{b_html}</td>
-                    </tr>
+        with st.expander(f"{section_icon} {section_title}  —  {total_items} danh mục ({total_evals} đợt đánh giá)", expanded=auto_expand_section):
+            if df_section.empty:
+                st.info("Chưa có dữ liệu trong phân hệ này.", icon=":material/info:")
+                return
+
+            local_search_query = st.text_input(
+                "Tìm kiếm trong phân hệ:",
+                placeholder=placeholder_text,
+                key=search_key,
+                label_visibility="collapsed"
+            ).strip().lower()
+
+            filtered_df = filter_overview_df(df_after_global, group_by_col, local_search_query)
+            active_search = bool(global_overview_search or local_search_query)
+
+            if filtered_df.empty:
+                kw_display = global_overview_search or local_search_query
+                st.warning(f"Không tìm thấy đợt Lot-to-Lot nào trong phân hệ **{section_title}** khớp với từ khóa **'{kw_display}'**.", icon=":material/search_off:")
+                return
+
+            for mach in sorted(filtered_df['machine'].unique()):
+                mach_df = filtered_df[filtered_df['machine'] == mach]
+                items_html = []
+
+                for item_name, group in mach_df.groupby(group_by_col, sort=False):
+                    latest_eval = group.iloc[0]
+                    first_char = str(item_name).strip()[0].upper() if str(item_name).strip() else "T"
+                    latest_badge = format_status_badge_html(latest_eval['status'])
+                    latest_date = latest_eval['date_str']
+                    latest_lot = clean_lot_str(latest_eval['lot_new'])
+                    eval_count = len(group)
+
+                    open_attr = "open" if active_search else ""
+
+                    sub_rows = []
+                    for _, r in group.iterrows():
+                        b_html = format_status_badge_html(r['status'])
+                        r_lot_old = clean_lot_str(r['lot_old'])
+                        r_lot_new = clean_lot_str(r['lot_new'])
+                        sub_rows.append(f"""
+                        <tr>
+                            <td class="text-left">{r['date_str']}</td>
+                            <td class="text-left">{r['test_name']}</td>
+                            <td class="text-right">{r_lot_old}</td>
+                            <td class="text-right">{r_lot_new}</td>
+                            <td class="text-center">{b_html}</td>
+                        </tr>
+                        """)
+
+                    items_html.append(f"""
+                    <details class="overview-item" {open_attr}>
+                        <summary class="overview-row">
+                            <div class="item-name-cell">
+                                <span class="item-avatar">{first_char}</span>
+                                <span>{item_name}</span>
+                            </div>
+                            <div class="item-lot-cell">{latest_lot}</div>
+                            <div class="item-date-cell">{latest_date}</div>
+                            <div>{latest_badge}</div>
+                            <div class="item-action-cell">{eval_count} đợt ▾</div>
+                        </summary>
+                        <div class="overview-subbox">
+                            <div class="lab-table-wrapper">
+                                <table class="lab-table">
+                                    <thead>
+                                        <tr>
+                                            <th class="text-left">Ngày thay LOT</th>
+                                            <th class="text-left">Xét nghiệm</th>
+                                            <th class="text-right">LOT cũ</th>
+                                            <th class="text-right">LOT mới</th>
+                                            <th class="text-center">Kết quả</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {"".join(sub_rows)}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </details>
                     """)
 
-                items_html.append(f"""
-                <details class="overview-item" {open_attr}>
-                    <summary class="overview-row">
-                        <div class="item-name-cell">
-                            <span class="item-avatar">{first_char}</span>
-                            <span>{item_name}</span>
-                        </div>
-                        <div class="item-lot-cell">{latest_lot}</div>
-                        <div class="item-date-cell">{latest_date}</div>
-                        <div>{latest_badge}</div>
-                        <div class="item-action-cell">{eval_count} đợt ▾</div>
-                    </summary>
-                    <div class="overview-subbox">
-                        <div class="lab-table-wrapper">
-                            <table class="lab-table">
-                                <thead>
-                                    <tr>
-                                        <th class="text-left">Ngày thay LOT</th>
-                                        <th class="text-left">Xét nghiệm</th>
-                                        <th class="text-right">LOT cũ</th>
-                                        <th class="text-right">LOT mới</th>
-                                        <th class="text-center">Kết quả</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {"".join(sub_rows)}
-                                </tbody>
-                            </table>
-                        </div>
+                render_html(f"""
+                <div class="overview-list-card">
+                    <div class="overview-group-header">
+                        <div class="overview-mach-title">🖨️ Máy: {mach}</div>
+                        <div>LOT đang dùng</div>
+                        <div>Cập nhật</div>
+                        <div>Trạng thái</div>
+                        <div class="text-right">Lịch sử</div>
                     </div>
-                </details>
+                    {"".join(items_html)}
+                </div>
                 """)
 
-            render_html(f"""
-            <div class="overview-list-card">
-                <div class="overview-group-header">
-                    <div class="overview-mach-title">🖨️ Máy: {mach}</div>
-                    <div>LOT đang dùng</div>
-                    <div>Cập nhật</div>
-                    <div>Trạng thái</div>
-                    <div class="text-right">Lịch sử</div>
-                </div>
-                {"".join(items_html)}
-            </div>
-            """)
+    render_collapsible_overview_section(
+        df_section=df_sh,
+        section_title="Sinh hóa - Miễn dịch",
+        section_icon=":material/water_drop:",
+        group_by_col="test_name",
+        search_key="search_overview_sh",
+        placeholder_text="🔍 Lọc riêng trong Sinh hóa - Miễn dịch (VD: GLUCOSE, Alinity, 70058, 03/11...)"
+    )
+
+    render_collapsible_overview_section(
+        df_section=df_hh,
+        section_title="Huyết học - HbA1c",
+        section_icon=":material/bloodtype:",
+        group_by_col="reagent_name",
+        search_key="search_overview_hh",
+        placeholder_text="🔍 Lọc riêng trong Huyết học - HbA1c (VD: Eluent, HA 8190V, 6G3101, 25/10...)"
+    )
 
 
 if page == "3. Lot Overview":
     render_page_banner(
         "Tổng quan LOT (Lot Overview)",
-        "Bấm vào từng phân hệ bên dưới để mở danh sách hiện trạng hóa chất và gõ vào ô tìm kiếm để lọc nhanh các đợt đánh giá Lot-to-Lot."
+        "Gõ vào thanh tìm kiếm bên dưới để tra cứu ngay số LOT mới nhất đang chạy trên từng máy, hoặc bấm vào từng phân hệ để xem danh sách."
     )
-
-    df_hist_dash = hist_df_master.copy()
-    if df_hist_dash.empty:
-        st.info("Chưa có dữ liệu đánh giá.", icon=":material/info:")
-    else:
-        df_hist_dash['reagent_name'] = df_hist_dash['reagent_name'].fillna('').astype(str).str.strip()
-        df_hist_dash.loc[df_hist_dash['reagent_name'].str.lower() == 'nan', 'reagent_name'] = ''
-        df_hist_dash['eval_date_obj'] = pd.to_datetime(df_hist_dash['eval_date'], errors='coerce')
-        df_hist_dash = df_hist_dash.dropna(subset=['eval_date_obj'])
-        df_hist_dash['date_str'] = df_hist_dash['eval_date_obj'].dt.strftime('%d/%m/%Y')
-
-        df_unique_evals = df_hist_dash.drop_duplicates(subset=['created_at']).copy()
-        df_unique_evals = df_unique_evals.sort_values(by=['eval_date_obj', 'created_at'], ascending=[False, False])
-
-        df_sh = df_unique_evals[df_unique_evals['reagent_name'] == '']
-        df_hh = df_unique_evals[df_unique_evals['reagent_name'] != '']
-
-        render_collapsible_overview_section(
-            df_section=df_sh,
-            section_title="Sinh hóa - Miễn dịch",
-            section_icon=":material/water_drop:",
-            group_by_col="test_name",
-            search_key="search_overview_sh",
-            placeholder_text="🔍 Tìm xét nghiệm, dòng máy, số LOT hoặc ngày (VD: GLUCOSE, Alinity, 70058, 03/11...)"
-        )
-
-        render_collapsible_overview_section(
-            df_section=df_hh,
-            section_title="Huyết học - HbA1c",
-            section_icon=":material/bloodtype:",
-            group_by_col="reagent_name",
-            search_key="search_overview_hh",
-            placeholder_text="🔍 Tìm hóa chất, dòng máy, số LOT hoặc ngày (VD: Eluent, HA 8190V, 6G3101, 25/10...)"
-        )
+    render_overview_workspace(hist_df_master)
 
 
 # ==============================================================================
