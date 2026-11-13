@@ -32,7 +32,6 @@ DEFAULT_SAMPLES = {
     ])
 }
 
-# Hỗ trợ tương thích mọi phiên bản Streamlit cho Dialog và Fragment
 _dialog_decorator = getattr(st, "dialog", getattr(st, "experimental_dialog", None))
 _fragment_decorator = getattr(st, "fragment", getattr(st, "experimental_fragment", lambda f: f))
 
@@ -1007,7 +1006,6 @@ def render_history_workspace(hist_df_master: pd.DataFrame, all_setups: pd.DataFr
     if hist_df.empty:
         st.info("Chưa có đợt đánh giá nào được lưu.", icon=":material/info:")
     else:
-        # THANH SEARCH BOX TRÊN CÙNG CHO ĐOÀN KIỂM TRA (Hỗ trợ gõ kết hợp Tên XN + Ngày + Máy + LOT)
         hist_search = st.text_input(
             "Tìm kiếm lịch sử đánh giá:",
             placeholder="🔍 Tra cứu nhanh (nhập Ngày, Tên XN, Máy, Hóa chất hoặc số LOT — VD: 13/11, ALT 13/11, WBC Ruby 04/11, 980645...)",
@@ -1022,7 +1020,6 @@ def render_history_workspace(hist_df_master: pd.DataFrame, all_setups: pd.DataFr
         hist_df['display_date_str'] = hist_df['eval_date'].dt.strftime('%d/%m/%Y')
         hist_df['e_date_str'] = hist_df['eval_date'].dt.strftime('%Y-%m-%d')
 
-        # Lọc đa từ khóa (mọi từ khóa gõ vào đều phải khớp trong cùng 1 đợt đánh giá)
         search_tokens = hist_search.split() if hist_search else []
         if search_tokens:
             matched_created_at = []
@@ -1035,7 +1032,7 @@ def render_history_workspace(hist_df_master: pd.DataFrame, all_setups: pd.DataFr
                 st_label = "đạt pass" if overall_ok else "không đạt trượt fail"
                 sids_str = " ".join(clean_lot_str(s) for s in grp['sid'].tolist())
 
-                 searchable_blob = (
+                searchable_blob = (
                     f"{f_row['display_date_str']} {f_row['e_date_str']} {f_row['YearMonth']} "
                     f"{f_row['test_name']} {f_row['machine']} {f_row.get('machine_id', '')} "
                     f"{reag_c} {l_old_c} {l_new_c} {sids_str} {st_label}"
@@ -1078,7 +1075,6 @@ def render_history_workspace(hist_df_master: pd.DataFrame, all_setups: pd.DataFr
                 reagent_str = f" • {reagent}" if reagent else ""
                 expander_label = f":material/event: {display_date_str}  |  {t_name} ({mach}){reagent_str}  |  LOT: {l_old} ➔ {l_new}  [{status_text}]"
 
-                # Tự động mở sẵn khung chi tiết nếu đang tìm kiếm và có từ 1-3 kết quả
                 auto_expand = bool(search_tokens) and (total_matched_groups <= 3)
 
                 with st.expander(expander_label, expanded=auto_expand):
@@ -1254,7 +1250,6 @@ def render_overview_workspace(hist_df_master: pd.DataFrame):
         st.info("Chưa có dữ liệu đánh giá.", icon=":material/info:")
         return
 
-    # THANH SEARCH BOX TỔNG TRÊN CÙNG CỦA TAB TỔNG QUAN LOT
     global_overview_search = st.text_input(
         "Tìm kiếm tổng quan LOT:",
         placeholder="🔍 Tra cứu nhanh LOT đang dùng: Nhập tên xét nghiệm, hóa chất, dòng máy hoặc số LOT (VD: ALT Cobas, MAU Alinity, WBC Ruby)...",
@@ -1292,12 +1287,10 @@ def render_overview_workspace(hist_df_master: pd.DataFrame):
         return df_in[mask]
 
     def render_collapsible_overview_section(df_section, section_title, section_icon, group_by_col, search_key, placeholder_text):
-        # Áp dụng bộ lọc từ thanh Search tổng phía trên trước
         df_after_global = filter_overview_df(df_section, group_by_col, global_overview_search)
         total_items = df_after_global[group_by_col].nunique() if not df_after_global.empty else 0
         total_evals = len(df_after_global)
 
-        # Tự động mở phân hệ nếu người dùng đang gõ trên thanh Search tổng và phân hệ này có kết quả khớp
         auto_expand_section = bool(global_overview_search) and (total_evals > 0)
 
         with st.expander(f"{section_icon} {section_title}  —  {total_items} danh mục ({total_evals} đợt đánh giá)", expanded=auto_expand_section):
@@ -1414,7 +1407,7 @@ def render_overview_workspace(hist_df_master: pd.DataFrame):
     )
 
 
-if page == "3. Lot Overview":
+elif page == "3. Lot Overview":
     render_page_banner(
         "Tổng quan LOT (Lot Overview)",
         "Gõ vào thanh tìm kiếm bên dưới để tra cứu ngay số LOT mới nhất đang chạy trên từng máy, hoặc bấm vào từng phân hệ để xem danh sách."
@@ -1565,7 +1558,7 @@ def render_stage1_workspace(all_setups_for_dropdown: pd.DataFrame):
             st.rerun()
 
 
-if page == "4. Parameter Setup":
+elif page == "4. Parameter Setup":
     render_page_banner(
         "Cấu hình Thông số (Stage 1)",
         "Thiết lập nồng độ đích, TEa%, Swrl% và Sr% để hệ thống tra bảng tính số lượng mẫu (n), lực thống kê (Power) và giới hạn từ chối (RL)."
