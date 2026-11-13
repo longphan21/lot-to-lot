@@ -252,15 +252,20 @@ def inject_custom_css():
             fill: currentColor !important;
         }
 
-        /* 4. SIDEBAR MENU DỌC (5 NÚT TIẾNG ANH ĐỀU NHAU 100%) */
+        /* 4. SIDEBAR MENU DỌC (TỰ ĐỘNG TRÀN TRANG CHÍNH KHI ĐÓNG) */
         [data-testid="stSidebar"] {
             background-color: #E6F4EA !important;
+        }
+        [data-testid="stSidebar"][aria-expanded="true"] {
             border-right: 1.5px solid #C8E6C9 !important;
             min-width: 245px !important;
             max-width: 265px !important;
         }
-        [data-testid="stSidebar"] > div:first-child {
-            background-color: #E6F4EA !important;
+        [data-testid="stSidebar"][aria-expanded="false"] {
+            min-width: 0px !important;
+            max-width: 0px !important;
+            width: 0px !important;
+            border-right: none !important;
         }
         .sidebar-brand {
             background-color: #FFFFFF;
