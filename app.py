@@ -42,11 +42,11 @@ def build_report_filename(test_name: str, machine: str, reagent: str, display_da
 
 
 def upload_word_to_drive(docx_bytes: bytes, filename: str):
-    """Tự động đẩy file Word lên thư mục Google Drive cá nhân khi bấm nút tải."""
+    """Tự động đẩy file Word lên thư mục Google Drive cá nhân qua Apps Script."""
     if "DÁN_LINK" in DRIVE_FOLDER_URL or "DÁN_LINK" in APPS_SCRIPT_URL:
         queue_popup(
-            "Đã tải về máy (Chưa gắn link Drive)",
-            f"Đã tải <b>{filename}</b> về máy.<br>Hãy dán link thư mục Drive và Apps Script vào đầu file <code>app.py</code> để tự động lưu lên Drive.",
+            "Chưa cấu hình Google Drive",
+            f"Hãy dán link thư mục Drive và Apps Script vào đầu file <code>app.py</code> để sử dụng tính năng lưu lên Drive.",
             "warning"
         )
         return
@@ -58,16 +58,16 @@ def upload_word_to_drive(docx_bytes: bytes, filename: str):
             "fileBase64": base64.b64encode(docx_bytes).decode("utf-8")
         }).encode("utf-8")
         req = urllib.request.Request(APPS_SCRIPT_URL, data=payload, headers={"Content-Type": "application/json"})
-        urllib.request.urlopen(req, timeout=20)
+        urllib.request.urlopen(req, timeout=25)
         queue_popup(
-            "Đã tải về máy & Lưu lên Google Drive!",
-            f"File <b>{filename}</b> đã được tải về máy và tự động lưu vào thư mục Google Drive của bạn.",
+            "Đã lưu lên Google Drive!",
+            f"File <b>{filename}</b> đã được tải lên thư mục Google Drive của bạn thành công.",
             "success"
         )
     except Exception as e:
         queue_popup(
-            "Đã tải về máy (Lỗi lưu Drive)",
-            f"File đã tải về máy nhưng chưa đẩy lên được Drive: {e}",
+            "Lỗi lưu lên Google Drive",
+            f"Không thể đẩy file <b>{filename}</b> lên Google Drive: {e}",
             "error"
         )
 
@@ -172,6 +172,43 @@ if _dialog_decorator is not None:
         """)
         if st.button("OK", type="primary", use_container_width=True, key="popup_ok_btn"):
             st.rerun()
+
+    @_dialog_decorator("Tùy chọn Xuất file Word")
+    def export_word_modal(docx_bytes: bytes, filename: str, key_suffix: str = ""):
+        render_html(f"""
+        <div style="background-color:#F4FBF6; border:1.5px solid #C8E6C9; border-radius:8px; padding:12px 16px; margin-bottom:16px; color:#0A2540; font-size:0.9rem;">
+            📄 <strong>Tên file chuẩn:</strong><br>
+            <code style="font-size:0.84rem; color:#1B5E20; word-break:break-all;">{filename}</code>
+        </div>
+        <div style="font-size:0.86rem; font-weight:600; color:#0A2540; margin-bottom:10px; text-align:center;">
+            Vui lòng chọn thao tác xuất file bên dưới:
+        </div>
+        """)
+
+        c1, c2, c3 = st.columns(3)
+        with c1:
+            if st.download_button(
+                label="📥 Tải về máy",
+                data=docx_bytes,
+                file_name=filename,
+                mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                use_container_width=True,
+                key=f"modal_dl_word_{key_suffix}"
+            ):
+                queue_popup(
+                    "Đã tải file về máy!",
+                    f"File <b>{filename}</b> đã được tải xuống máy tính của bạn.",
+                    "success"
+                )
+                st.rerun()
+        with c2:
+            if st.button("☁️ Up lên Drive", type="primary", use_container_width=True, key=f"modal_up_drive_{key_suffix}"):
+                with st.spinner("Đang tải file lên Google Drive..."):
+                    upload_word_to_drive(docx_bytes, filename)
+                st.rerun()
+        with c3:
+            if st.button("❌ Hủy", use_container_width=True, key=f"modal_cancel_word_{key_suffix}"):
+                st.rerun()
 
     @_dialog_decorator("Xác nhận xóa đợt đánh giá")
     def confirm_delete_eval_modal(created_at: str, t_name: str, display_date_str: str, l_old: str, l_new: str):
@@ -1137,16 +1174,16 @@ def render_history_workspace(hist_df_master: pd.DataFrame, all_setups: pd.DataFr
                     word_filename = build_report_filename(t_name, mach, reagent, display_date_str)
 
                     with col_word:
-                        st.download_button(
-                            label=":material/description: Xuất file Word",
-                            data=docx_bytes_cached,
-                            file_name=word_filename,
-                            mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                            key=f"dl_word_{created_at}",
-                            use_container_width=True,
-                            on_click=upload_word_to_drive,
-                            args=(docx_bytes_cached, word_filename)
-                        )
+                        if st.button(
+                            ":material/description: Xuất file Word",
+                            key=f"btn_export_word_{created_at}",
+                            use_container_width=True
+                        ):
+                            if _dialog_decorator is not None:
+                                export_word_modal(docx_bytes_cached, word_filename, str(created_at))
+                            else:
+                                upload_word_to_drive(docx_bytes_cached, word_filename)
+                                st.rerun()
 
                     with col_pdf:
                         if f"pdf_ready_{created_at}" not in st.session_state:
