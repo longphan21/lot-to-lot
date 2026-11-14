@@ -14,6 +14,63 @@ from database import (
     load_trash_history, restore_stage2_evaluation, permanently_delete_stage2_evaluation
 )
 
+import re
+import json
+import base64
+import urllib.request
+
+# 1. Dán link thư mục Google Drive của bạn vào đây:
+DRIVE_FOLDER_URL = "https://drive.google.com/drive/folders/1Bsrb3rxJNYFdAIFgaPm8nMSeEe5nk0km?usp=sharing"
+
+# 2. Dán link Web App URL vừa lấy ở Bước 1 vào đây:
+APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbycG9IcKnNAcnFxyFYQGeglISyKNya3dS4VX251seSpMm8gWyGKBzr2xE_hm9ADp-nwVQ/exec"
+
+
+def build_report_filename(test_name: str, machine: str, reagent: str, display_date_str: str) -> str:
+    """Đổi tên file: Tên XN - Tên máy - Loại hóa chất (nếu có) - Ngày đánh giá.docx"""
+    def _clean(s: str) -> str:
+        return re.sub(r'[\\/*?:"<>|]+', '-', str(s).strip())
+
+    t_clean = _clean(test_name)
+    m_clean = _clean(machine)
+    d_clean = _clean(display_date_str)
+    r_clean = _clean(reagent) if reagent and str(reagent).strip().lower() != "nan" else ""
+
+    if r_clean:
+        return f"{t_clean} - {m_clean} - {r_clean} - {d_clean}.docx"
+    return f"{t_clean} - {m_clean} - {d_clean}.docx"
+
+
+def upload_word_to_drive(docx_bytes: bytes, filename: str):
+    """Tự động đẩy file Word lên thư mục Google Drive cá nhân khi bấm nút tải."""
+    if "DÁN_LINK" in DRIVE_FOLDER_URL or "DÁN_LINK" in APPS_SCRIPT_URL:
+        queue_popup(
+            "Đã tải về máy (Chưa gắn link Drive)",
+            f"Đã tải <b>{filename}</b> về máy.<br>Hãy dán link thư mục Drive và Apps Script vào đầu file <code>app.py</code> để tự động lưu lên Drive.",
+            "warning"
+        )
+        return
+    try:
+        payload = json.dumps({
+            "folderUrl": DRIVE_FOLDER_URL,
+            "fileName": filename,
+            "mimeType": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            "fileBase64": base64.b64encode(docx_bytes).decode("utf-8")
+        }).encode("utf-8")
+        req = urllib.request.Request(APPS_SCRIPT_URL, data=payload, headers={"Content-Type": "application/json"})
+        urllib.request.urlopen(req, timeout=20)
+        queue_popup(
+            "Đã tải về máy & Lưu lên Google Drive!",
+            f"File <b>{filename}</b> đã được tải về máy và tự động lưu vào thư mục Google Drive của bạn.",
+            "success"
+        )
+    except Exception as e:
+        queue_popup(
+            "Đã tải về máy (Lỗi lưu Drive)",
+            f"File đã tải về máy nhưng chưa đẩy lên được Drive: {e}",
+            "error"
+        )
+
 st.set_page_config(
     page_title="CLSI EP26 - Lot-to-Lot",
     layout="wide",
@@ -1077,14 +1134,18 @@ def render_history_workspace(hist_df_master: pd.DataFrame, all_setups: pd.DataFr
                         e_date_str, t_name, unit, mach, mach_id, reagent, l_old, l_new, setup_df, group
                     )
 
+                    word_filename = build_report_filename(t_name, mach, reagent, display_date_str)
+
                     with col_word:
                         st.download_button(
                             label=":material/description: Xuất file Word",
                             data=docx_bytes_cached,
-                            file_name=f"LotToLot_{t_name}_{l_old}_{l_new}.docx",
+                            file_name=word_filename,
                             mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
                             key=f"dl_word_{created_at}",
-                            use_container_width=True
+                            use_container_width=True,
+                            on_click=upload_word_to_drive,
+                            args=(docx_bytes_cached, word_filename)
                         )
 
                     with col_pdf:
