@@ -15,7 +15,8 @@ from database import (
     init_db, save_test_setup, load_all_setups, load_specific_setup,
     delete_specific_setup, save_stage2_evaluation, load_stage2_history,
     delete_stage2_evaluation, import_stage1_from_dataframe,
-    load_trash_history, restore_stage2_evaluation, permanently_delete_stage2_evaluation
+    load_trash_history, restore_stage2_evaluation, permanently_delete_stage2_evaluation,
+    update_stage2_signed_status
 )
 
 # 1. Dán link thư mục Google Drive của bạn vào đây:
@@ -461,7 +462,11 @@ if _dialog_decorator is not None:
 
 
 def render_pending_popup():
-    """Kiểm tra và bật Pop-up ngay khi trang vừa tải lại sau thao tác."""
+    """Kiểm tra và bật Pop-up hoặc Toast ngay khi trang vừa tải lại sau thao tác."""
+    if "pending_toast" in st.session_state and st.session_state["pending_toast"]:
+        toast_msg = st.session_state.pop("pending_toast")
+        if hasattr(st, "toast"):
+            st.toast(toast_msg)
     if "pending_popup" in st.session_state and st.session_state["pending_popup"] is not None:
         data = st.session_state.pop("pending_popup")
         if _dialog_decorator is not None:
@@ -907,6 +912,34 @@ def inject_custom_css(is_mobile: bool = False):
             background-color: #FEF3C7;
             color: #B45309;
             border: 1px solid #FDE68A;
+        }}
+        .badge-signed {{
+            background-color: #DBEAFE;
+            color: #1D4ED8;
+            border: 1px solid #93C5FD;
+        }}
+        .badge-unsigned {{
+            background-color: #FEF3C7;
+            color: #B45309;
+            border: 1px solid #FDE68A;
+        }}
+        /* Ô check Đã ký nằm sát bên trái mỗi đợt đánh giá ở mục History (cả Desktop & Mobile) */
+        [data-testid="stHorizontalBlock"]:has([class*="st-key-chk_sign_"]) {{
+            flex-wrap: nowrap !important;
+            align-items: flex-start !important;
+            gap: 0.35rem !important;
+            margin-bottom: 4px !important;
+        }}
+        [data-testid="stHorizontalBlock"]:has([class*="st-key-chk_sign_"]) > [data-testid="stColumn"]:first-child {{
+            flex: 0 0 34px !important;
+            width: 34px !important;
+            min-width: 34px !important;
+            max-width: 34px !important;
+            padding-top: 6px !important;
+        }}
+        [data-testid="stHorizontalBlock"]:has([class*="st-key-chk_sign_"]) > [data-testid="stColumn"]:last-child {{
+            flex: 1 1 auto !important;
+            min-width: 0 !important;
         }}
 
         .eval-result-box {{
@@ -1689,9 +1722,14 @@ def render_history_workspace(hist_df_master: pd.DataFrame, all_setups: pd.DataFr
         st.info("Chưa có đợt đánh giá nào được lưu.", icon=":material/info:")
         return
 
+    if "signed" not in hist_df.columns:
+        hist_df["signed"] = False
+    else:
+        hist_df["signed"] = hist_df["signed"].astype(str).str.strip().str.lower().isin(["1", "true", "yes", "đã ký"])
+
     hist_search = st.text_input(
         "Tìm kiếm lịch sử đánh giá:",
-        placeholder="🔍 Tra cứu (Ngày, Tên XN, Máy, Hóa chất, số LOT)..." if is_mobile else "🔍 Tra cứu nhanh (nhập Ngày, Tên XN, Máy, Hóa chất hoặc số LOT — VD: 13/11, ALT 13/11, WBC Ruby 04/11, 980645...)",
+        placeholder="🔍 Tra cứu (Ngày, Tên XN, Máy, Hóa chất, số LOT, chưa ký)..." if is_mobile else "🔍 Tra cứu nhanh (nhập Ngày, Tên XN, Máy, Hóa chất, số LOT hoặc 'chưa ký' — VD: 13/11, ALT 13/11, WBC Ruby...)",
         key="search_eval_history_top",
         label_visibility="collapsed"
     ).strip().lower()
@@ -1703,6 +1741,38 @@ def render_history_workspace(hist_df_master: pd.DataFrame, all_setups: pd.DataFr
     hist_df['display_date_str'] = hist_df['eval_date'].dt.strftime('%d/%m/%Y')
     hist_df['e_date_str'] = hist_df['eval_date'].dt.strftime('%Y-%m-%d')
 
+    # Bộ lọc nhanh số lượng Đã ký / Chưa ký cho đợt trình ký cuối tuần
+    group_sign_status = hist_df.groupby('created_at', sort=False)['signed'].first()
+    total_all_groups = len(group_sign_status)
+    cnt_signed = int(group_sign_status.sum())
+    cnt_unsigned = total_all_groups - cnt_signed
+
+    sign_filter_labels = {
+        "all": f"📋 Tất cả ({total_all_groups})",
+        "unsigned": f"⏳ Chưa ký ({cnt_unsigned})",
+        "signed": f"✍️ Đã ký ({cnt_signed})",
+    }
+    sel_sign_filter = st.radio(
+        "Lọc trạng thái ký:",
+        options=["all", "unsigned", "signed"],
+        format_func=lambda k: sign_filter_labels[k],
+        horizontal=True,
+        key="hist_sign_filter",
+        label_visibility="collapsed",
+    )
+
+    if sel_sign_filter == "unsigned":
+        keep_ids = group_sign_status[~group_sign_status].index.tolist()
+        hist_df = hist_df[hist_df['created_at'].isin(keep_ids)]
+    elif sel_sign_filter == "signed":
+        keep_ids = group_sign_status[group_sign_status].index.tolist()
+        hist_df = hist_df[hist_df['created_at'].isin(keep_ids)]
+
+    if hist_df.empty:
+        msg_empty = "Tất cả hồ sơ đều đã được ký! 🎉" if sel_sign_filter == "unsigned" else "Chưa có hồ sơ nào được đánh dấu đã ký."
+        st.info(msg_empty, icon=":material/check_circle:")
+        return
+
     search_tokens = hist_search.split() if hist_search else []
     if search_tokens:
         matched_created_at = []
@@ -1713,12 +1783,13 @@ def render_history_workspace(hist_df_master: pd.DataFrame, all_setups: pd.DataFr
             reag_c = str(f_row.get('reagent_name', '')).strip()
             overall_ok = all(str(r['status']).upper() == 'PASS' for _, r in grp.iterrows())
             st_label = "đạt pass" if overall_ok else "không đạt trượt fail"
+            sign_kw = "đã ký da ky signed" if bool(f_row['signed']) else "chưa ký chua ky unsigned"
             sids_str = " ".join(clean_lot_str(s) for s in grp['sid'].tolist())
 
             searchable_blob = (
                 f"{f_row['display_date_str']} {f_row['e_date_str']} {f_row['YearMonth']} "
                 f"{f_row['test_name']} {f_row['machine']} {f_row.get('machine_id', '')} "
-                f"{reag_c} {l_old_c} {l_new_c} {sids_str} {st_label}"
+                f"{reag_c} {l_old_c} {l_new_c} {sids_str} {st_label} {sign_kw}"
             ).lower()
 
             if all(tok in searchable_blob for tok in search_tokens):
@@ -1730,6 +1801,15 @@ def render_history_workspace(hist_df_master: pd.DataFrame, all_setups: pd.DataFr
             st.warning(f"Không tìm thấy biên bản đánh giá nào khớp với từ khóa **'{hist_search}'**.", icon=":material/search_off:")
             return
         render_html(f'<div class="search-result-pill">🔍 Tìm thấy <b>{len(matched_created_at)}</b> đợt đánh giá khớp với <b>"{hist_search}"</b></div>')
+
+    def _on_toggle_sign(c_at: str, w_key: str, info_txt: str):
+        new_signed = bool(st.session_state.get(w_key, False))
+        update_stage2_signed_status(c_at, new_signed)
+        st.session_state["pending_toast"] = (
+            f"✍️ Đã đánh dấu ĐÃ KÝ: {info_txt}"
+            if new_signed
+            else f"⏳ Đã bỏ dấu ký (CHƯA KÝ): {info_txt}"
+        )
 
     total_matched_groups = hist_df['created_at'].nunique()
     year_months = hist_df['YearMonth'].unique().tolist()
@@ -1752,178 +1832,148 @@ def render_history_workspace(hist_df_master: pd.DataFrame, all_setups: pd.DataFr
             e_date_str = first_row['e_date_str']
             display_date_str = first_row['display_date_str']
             unit = first_row['unit']
+            is_signed = bool(first_row['signed'])
 
             overall_pass = all(str(r['status']).upper() == 'PASS' for _, r in group.iterrows())
             status_text = "🟢 Đạt" if overall_pass else "🔴 Không đạt"
+            sign_text = "✍️ Đã ký" if is_signed else "⏳ Chưa ký"
             reagent_str = f" • {reagent}" if reagent else ""
 
             if is_mobile:
-                expander_label = f"{'🟢' if overall_pass else '🔴'} {display_date_str} • {t_name} ({mach}) | {l_old} ➔ {l_new}"
+                sign_icon = "✍️" if is_signed else "⏳"
+                expander_label = f"{'🟢' if overall_pass else '🔴'}{sign_icon} {display_date_str} • {t_name} ({mach}) | {l_old} ➔ {l_new}"
             else:
-                expander_label = f":material/event: {display_date_str}  |  {t_name} ({mach}){reagent_str}  |  LOT: {l_old} ➔ {l_new}  [{status_text}]"
+                expander_label = f":material/event: {display_date_str}  |  {t_name} ({mach}){reagent_str}  |  LOT: {l_old} ➔ {l_new}  [{status_text} • {sign_text}]"
 
             auto_expand = bool(search_tokens) and (total_matched_groups <= 3)
+            safe_cat = re.sub(r"[^a-zA-Z0-9_]", "_", str(created_at))
+            chk_key = f"chk_sign_{safe_cat}"
 
-            with st.expander(expander_label, expanded=auto_expand):
-                reagent_meta = f'<div><strong>Hóa chất:</strong> {reagent}</div>' if reagent else ''
-                overall_badge = format_status_badge_html("PASS" if overall_pass else "FAIL")
-                render_html(f"""
-                <div class="history-meta-bar">
-                    <div><strong>Ngày:</strong> <span class="date-pill">{display_date_str}</span></div>
-                    <div><strong>XN:</strong> {t_name} ({unit})</div>
-                    <div><strong>Máy:</strong> {mach} {f'({mach_id})' if mach_id else ''}</div>
-                    {reagent_meta}
-                    <div><strong>LOT:</strong> <span class="lot-pill">{l_old} ➔ {l_new}</span></div>
-                    <div>{overall_badge}</div>
-                </div>
-                """)
+            col_chk, col_exp = st.columns([0.08, 0.92])
+            with col_chk:
+                st.checkbox(
+                    "Đã ký",
+                    value=is_signed,
+                    key=chk_key,
+                    label_visibility="collapsed",
+                    help="Tick để đánh dấu hồ sơ này đã đưa sếp ký",
+                    on_change=_on_toggle_sign,
+                    args=(str(created_at), chk_key, f"{t_name} ({display_date_str})"),
+                )
 
-                if is_mobile:
-                    # Giao diện Mobile dạng Thẻ dọc theo từng Level
-                    for lv_name, lv_grp in group.groupby('level_name', sort=False):
-                        lv_first = lv_grp.iloc[0]
-                        lv_badge = format_status_badge_html(lv_first['status'])
-                        sample_rows_html = []
-                        for _, sr in lv_grp.iterrows():
-                            sid_clean = clean_lot_str(sr['sid'])
-                            sample_rows_html.append(f"""
-                            <div class="m-sample-row">
-                                <span><b>{sid_clean}</b></span>
-                                <span>{float(sr['val_old']):.3f} ➔ {float(sr['val_new']):.3f}</span>
-                                <span>|d|: <b>{float(sr['diff_d']):.3f}</b></span>
-                            </div>
-                            """)
-                        render_html(f"""
-                        <div class="m-card">
-                            <div class="m-card-head">
-                                <div class="m-card-title">🎯 {lv_name} — {float(lv_first['target_conc']):.3f} {unit}</div>
-                                {lv_badge}
-                            </div>
-                            <div class="m-kpi-grid">
-                                <div class="m-kpi-card">
-                                    <div class="m-kpi-lbl">TB |d|</div>
-                                    <div class="m-kpi-val">{float(lv_first['mean_d']):.3f}</div>
-                                </div>
-                                <div class="m-kpi-card">
-                                    <div class="m-kpi-lbl">TB |d| (%)</div>
-                                    <div class="m-kpi-val">{float(lv_first['mean_d_pct']):.3f}%</div>
-                                </div>
-                                <div class="m-kpi-card">
-                                    <div class="m-kpi-lbl">RL (%)</div>
-                                    <div class="m-kpi-val">{float(lv_first['rl_pct']):.3f}%</div>
-                                </div>
-                            </div>
-                            {"".join(sample_rows_html)}
-                        </div>
-                        """)
-                else:
-                    rows_html = []
-                    for _, r in group.iterrows():
-                        badge_cell = format_status_badge_html(r['status'])
-                        sid_clean = clean_lot_str(r['sid'])
-                        rows_html.append(f"""
-                        <tr>
-                            <td class="text-left">{r['level_name']}</td>
-                            <td class="text-right">{float(r['target_conc']):.3f}</td>
-                            <td class="text-left">{sid_clean}</td>
-                            <td class="text-right">{float(r['val_old']):.3f}</td>
-                            <td class="text-right">{float(r['val_new']):.3f}</td>
-                            <td class="text-right">{float(r['diff_d']):.3f}</td>
-                            <td class="text-right">{float(r['mean_d']):.3f}</td>
-                            <td class="text-right">{float(r['mean_d_pct']):.3f}</td>
-                            <td class="text-right">{float(r['rl_pct']):.3f}</td>
-                            <td class="text-center">{badge_cell}</td>
-                        </tr>
-                        """)
-
+            with col_exp:
+                with st.expander(expander_label, expanded=auto_expand):
+                    reagent_meta = f'<div><strong>Hóa chất:</strong> {reagent}</div>' if reagent else ''
+                    overall_badge = format_status_badge_html("PASS" if overall_pass else "FAIL")
+                    sign_badge = (
+                        '<span class="status-badge badge-signed">✍️ Đã ký</span>'
+                        if is_signed
+                        else '<span class="status-badge badge-unsigned">⏳ Chưa ký</span>'
+                    )
                     render_html(f"""
-                    <div class="lab-table-wrapper">
-                        <table class="lab-table">
-                            <thead>
-                                <tr>
-                                    <th class="text-left">Mức (Level)</th>
-                                    <th class="text-right">Nồng độ đích</th>
-                                    <th class="text-left">Mã mẫu (SID)</th>
-                                    <th class="text-right">KQ LOT cũ</th>
-                                    <th class="text-right">KQ LOT mới</th>
-                                    <th class="text-right">Độ chệch |d|</th>
-                                    <th class="text-right">TB |d|</th>
-                                    <th class="text-right">TB |d| (%)</th>
-                                    <th class="text-right">Giới hạn RL (%)</th>
-                                    <th class="text-center">Kết quả</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {"".join(rows_html)}
-                            </tbody>
-                        </table>
+                    <div class="history-meta-bar">
+                        <div><strong>Ngày:</strong> <span class="date-pill">{display_date_str}</span></div>
+                        <div><strong>XN:</strong> {t_name} ({unit})</div>
+                        <div><strong>Máy:</strong> {mach} {f'({mach_id})' if mach_id else ''}</div>
+                        {reagent_meta}
+                        <div><strong>LOT:</strong> <span class="lot-pill">{l_old} ➔ {l_new}</span></div>
+                        <div>{overall_badge}</div>
+                        <div>{sign_badge}</div>
                     </div>
                     """)
 
-                setup_df = all_setups[(all_setups['test_name'] == t_name) & (all_setups['machine'] == mach)]
-                docx_bytes_cached = get_cached_report_docx_bytes(
-                    e_date_str, t_name, unit, mach, mach_id, reagent, l_old, l_new, setup_df, group
-                )
-                word_filename = build_report_filename(t_name, mach, reagent, display_date_str)
+                    if is_mobile:
+                        for lv_name, lv_grp in group.groupby('level_name', sort=False):
+                            lv_first = lv_grp.iloc[0]
+                            lv_badge = format_status_badge_html(lv_first['status'])
+                            sample_rows_html = []
+                            for _, sr in lv_grp.iterrows():
+                                sid_clean = clean_lot_str(sr['sid'])
+                                sample_rows_html.append(f"""
+                                <div class="m-sample-row">
+                                    <span><b>{sid_clean}</b></span>
+                                    <span>{float(sr['val_old']):.3f} ➔ {float(sr['val_new']):.3f}</span>
+                                    <span>|d|: <b>{float(sr['diff_d']):.3f}</b></span>
+                                </div>
+                                """)
+                            render_html(f"""
+                            <div class="m-card">
+                                <div class="m-card-head">
+                                    <div class="m-card-title">🎯 {lv_name} — {float(lv_first['target_conc']):.3f} {unit}</div>
+                                    {lv_badge}
+                                </div>
+                                <div class="m-kpi-grid">
+                                    <div class="m-kpi-card">
+                                        <div class="m-kpi-lbl">TB |d|</div>
+                                        <div class="m-kpi-val">{float(lv_first['mean_d']):.3f}</div>
+                                    </div>
+                                    <div class="m-kpi-card">
+                                        <div class="m-kpi-lbl">TB |d| (%)</div>
+                                        <div class="m-kpi-val">{float(lv_first['mean_d_pct']):.3f}%</div>
+                                    </div>
+                                    <div class="m-kpi-card">
+                                        <div class="m-kpi-lbl">RL (%)</div>
+                                        <div class="m-kpi-val">{float(lv_first['rl_pct']):.3f}%</div>
+                                    </div>
+                                </div>
+                                {"".join(sample_rows_html)}
+                            </div>
+                            """)
+                    else:
+                        rows_html = []
+                        for _, r in group.iterrows():
+                            badge_cell = format_status_badge_html(r['status'])
+                            sid_clean = clean_lot_str(r['sid'])
+                            rows_html.append(f"""
+                            <tr>
+                                <td class="text-left">{r['level_name']}</td>
+                                <td class="text-right">{float(r['target_conc']):.3f}</td>
+                                <td class="text-left">{sid_clean}</td>
+                                <td class="text-right">{float(r['val_old']):.3f}</td>
+                                <td class="text-right">{float(r['val_new']):.3f}</td>
+                                <td class="text-right">{float(r['diff_d']):.3f}</td>
+                                <td class="text-right">{float(r['mean_d']):.3f}</td>
+                                <td class="text-right">{float(r['mean_d_pct']):.3f}</td>
+                                <td class="text-right">{float(r['rl_pct']):.3f}</td>
+                                <td class="text-center">{badge_cell}</td>
+                            </tr>
+                            """)
 
-                if is_mobile:
-                    if st.button(
-                        ":material/description: Xuất file Word / Up Drive",
-                        key=f"btn_export_word_{created_at}",
-                        type="primary",
-                        use_container_width=True
-                    ):
-                        if _dialog_decorator is not None:
-                            export_word_modal(docx_bytes_cached, word_filename, str(created_at))
-                        else:
-                            upload_word_to_drive(docx_bytes_cached, word_filename)
-                            st.rerun()
+                        render_html(f"""
+                        <div class="lab-table-wrapper">
+                            <table class="lab-table">
+                                <thead>
+                                    <tr>
+                                        <th class="text-left">Mức (Level)</th>
+                                        <th class="text-right">Nồng độ đích</th>
+                                        <th class="text-left">Mã mẫu (SID)</th>
+                                        <th class="text-right">KQ LOT cũ</th>
+                                        <th class="text-right">KQ LOT mới</th>
+                                        <th class="text-right">Độ chệch |d|</th>
+                                        <th class="text-right">TB |d|</th>
+                                        <th class="text-right">TB |d| (%)</th>
+                                        <th class="text-right">Giới hạn RL (%)</th>
+                                        <th class="text-center">Kết quả</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {"".join(rows_html)}
+                                </tbody>
+                            </table>
+                        </div>
+                        """)
 
-                    m_b1, m_b2 = st.columns(2)
-                    with m_b1:
-                        if f"pdf_ready_{created_at}" not in st.session_state:
-                            if st.button(":material/picture_as_pdf: Tạo PDF", key=f"create_pdf_{created_at}", use_container_width=True):
-                                with st.spinner("Đang vẽ PDF..."):
-                                    pdf_bytes = convert_docx_to_pdf_bytes(docx_bytes_cached)
-                                    if pdf_bytes:
-                                        st.session_state[f"pdf_bytes_{created_at}"] = pdf_bytes
-                                        st.session_state[f"pdf_ready_{created_at}"] = True
-                                        queue_popup(
-                                            "Tạo file PDF thành công!",
-                                            f"Đã khởi tạo xong file PDF cho xét nghiệm <b>{t_name}</b> (LOT: {l_old} ➔ {l_new}).",
-                                            "success"
-                                        )
-                                        st.rerun()
-                                    else:
-                                        queue_popup(
-                                            "Không thể tạo PDF",
-                                            "Môi trường Cloud hiện chưa cài đặt LibreOffice. Vui lòng sử dụng nút <b>Xuất file Word</b>.",
-                                            "error"
-                                        )
-                                        st.rerun()
-                        else:
-                            st.download_button(
-                                label=":material/download: Tải PDF",
-                                data=st.session_state[f"pdf_bytes_{created_at}"],
-                                file_name=f"LotToLot_{t_name}_{l_old}_{l_new}.pdf",
-                                mime="application/pdf",
-                                key=f"dl_pdf_{created_at}",
-                                use_container_width=True
-                            )
-                    with m_b2:
-                        if st.button(":material/delete: Xóa đợt này", key=f"del_hist_{created_at}", use_container_width=True):
-                            if _dialog_decorator is not None:
-                                confirm_delete_eval_modal(created_at, t_name, display_date_str, l_old, l_new)
-                            else:
-                                delete_stage2_evaluation(created_at)
-                                queue_popup("Đã chuyển vào Thùng rác", f"Đã xóa đợt đánh giá {t_name}.", "warning")
-                                st.rerun()
-                else:
-                    col_word, col_pdf, col_del = st.columns([1, 1, 1])
-                    with col_word:
+                    setup_df = all_setups[(all_setups['test_name'] == t_name) & (all_setups['machine'] == mach)]
+                    docx_bytes_cached = get_cached_report_docx_bytes(
+                        e_date_str, t_name, unit, mach, mach_id, reagent, l_old, l_new, setup_df, group
+                    )
+                    word_filename = build_report_filename(t_name, mach, reagent, display_date_str)
+
+                    if is_mobile:
                         if st.button(
-                            ":material/description: Xuất file Word",
+                            ":material/description: Xuất file Word / Up Drive",
                             key=f"btn_export_word_{created_at}",
+                            type="primary",
                             use_container_width=True
                         ):
                             if _dialog_decorator is not None:
@@ -1932,45 +1982,98 @@ def render_history_workspace(hist_df_master: pd.DataFrame, all_setups: pd.DataFr
                                 upload_word_to_drive(docx_bytes_cached, word_filename)
                                 st.rerun()
 
-                    with col_pdf:
-                        if f"pdf_ready_{created_at}" not in st.session_state:
-                            if st.button(":material/picture_as_pdf: Tạo file PDF", key=f"create_pdf_{created_at}", use_container_width=True):
-                                with st.spinner("Đang vẽ PDF..."):
-                                    pdf_bytes = convert_docx_to_pdf_bytes(docx_bytes_cached)
-                                    if pdf_bytes:
-                                        st.session_state[f"pdf_bytes_{created_at}"] = pdf_bytes
-                                        st.session_state[f"pdf_ready_{created_at}"] = True
-                                        queue_popup(
-                                            "Tạo file PDF thành công!",
-                                            f"Đã khởi tạo xong file PDF cho xét nghiệm <b>{t_name}</b> (LOT: {l_old} ➔ {l_new}). Bạn hãy bấm nút <b>Tải PDF xuống</b> để lưu file.",
-                                            "success"
-                                        )
-                                        st.rerun()
-                                    else:
-                                        queue_popup(
-                                            "Không thể tạo PDF",
-                                            "Môi trường Cloud hiện chưa cài đặt LibreOffice. Vui lòng sử dụng nút <b>Xuất file Word</b>.",
-                                            "error"
-                                        )
-                                        st.rerun()
-                        else:
-                            st.download_button(
-                                label=":material/download: Tải PDF xuống",
-                                data=st.session_state[f"pdf_bytes_{created_at}"],
-                                file_name=f"LotToLot_{t_name}_{l_old}_{l_new}.pdf",
-                                mime="application/pdf",
-                                key=f"dl_pdf_{created_at}",
-                                use_container_width=True
-                            )
-
-                    with col_del:
-                        if st.button(":material/delete: Xóa đợt này", key=f"del_hist_{created_at}", use_container_width=True):
-                            if _dialog_decorator is not None:
-                                confirm_delete_eval_modal(created_at, t_name, display_date_str, l_old, l_new)
+                        m_b1, m_b2 = st.columns(2)
+                        with m_b1:
+                            if f"pdf_ready_{created_at}" not in st.session_state:
+                                if st.button(":material/picture_as_pdf: Tạo PDF", key=f"create_pdf_{created_at}", use_container_width=True):
+                                    with st.spinner("Đang vẽ PDF..."):
+                                        pdf_bytes = convert_docx_to_pdf_bytes(docx_bytes_cached)
+                                        if pdf_bytes:
+                                            st.session_state[f"pdf_bytes_{created_at}"] = pdf_bytes
+                                            st.session_state[f"pdf_ready_{created_at}"] = True
+                                            queue_popup(
+                                                "Tạo file PDF thành công!",
+                                                f"Đã khởi tạo xong file PDF cho xét nghiệm <b>{t_name}</b> (LOT: {l_old} ➔ {l_new}).",
+                                                "success"
+                                            )
+                                            st.rerun()
+                                        else:
+                                            queue_popup(
+                                                "Không thể tạo PDF",
+                                                "Môi trường Cloud hiện chưa cài đặt LibreOffice. Vui lòng sử dụng nút <b>Xuất file Word</b>.",
+                                                "error"
+                                            )
+                                            st.rerun()
                             else:
-                                delete_stage2_evaluation(created_at)
-                                queue_popup("Đã chuyển vào Thùng rác", f"Đã xóa đợt đánh giá {t_name}.", "warning")
-                                st.rerun()
+                                st.download_button(
+                                    label=":material/download: Tải PDF",
+                                    data=st.session_state[f"pdf_bytes_{created_at}"],
+                                    file_name=f"LotToLot_{t_name}_{l_old}_{l_new}.pdf",
+                                    mime="application/pdf",
+                                    key=f"dl_pdf_{created_at}",
+                                    use_container_width=True
+                                )
+                        with m_b2:
+                            if st.button(":material/delete: Xóa đợt này", key=f"del_hist_{created_at}", use_container_width=True):
+                                if _dialog_decorator is not None:
+                                    confirm_delete_eval_modal(created_at, t_name, display_date_str, l_old, l_new)
+                                else:
+                                    delete_stage2_evaluation(created_at)
+                                    queue_popup("Đã chuyển vào Thùng rác", f"Đã xóa đợt đánh giá {t_name}.", "warning")
+                                    st.rerun()
+                    else:
+                        col_word, col_pdf, col_del = st.columns([1, 1, 1])
+                        with col_word:
+                            if st.button(
+                                ":material/description: Xuất file Word",
+                                key=f"btn_export_word_{created_at}",
+                                use_container_width=True
+                            ):
+                                if _dialog_decorator is not None:
+                                    export_word_modal(docx_bytes_cached, word_filename, str(created_at))
+                                else:
+                                    upload_word_to_drive(docx_bytes_cached, word_filename)
+                                    st.rerun()
+
+                        with col_pdf:
+                            if f"pdf_ready_{created_at}" not in st.session_state:
+                                if st.button(":material/picture_as_pdf: Tạo file PDF", key=f"create_pdf_{created_at}", use_container_width=True):
+                                    with st.spinner("Đang vẽ PDF..."):
+                                        pdf_bytes = convert_docx_to_pdf_bytes(docx_bytes_cached)
+                                        if pdf_bytes:
+                                            st.session_state[f"pdf_bytes_{created_at}"] = pdf_bytes
+                                            st.session_state[f"pdf_ready_{created_at}"] = True
+                                            queue_popup(
+                                                "Tạo file PDF thành công!",
+                                                f"Đã khởi tạo xong file PDF cho xét nghiệm <b>{t_name}</b> (LOT: {l_old} ➔ {l_new}). Bạn hãy bấm nút <b>Tải PDF xuống</b> để lưu file.",
+                                                "success"
+                                            )
+                                            st.rerun()
+                                        else:
+                                            queue_popup(
+                                                "Không thể tạo PDF",
+                                                "Môi trường Cloud hiện chưa cài đặt LibreOffice. Vui lòng sử dụng nút <b>Xuất file Word</b>.",
+                                                "error"
+                                            )
+                                            st.rerun()
+                            else:
+                                st.download_button(
+                                    label=":material/download: Tải PDF xuống",
+                                    data=st.session_state[f"pdf_bytes_{created_at}"],
+                                    file_name=f"LotToLot_{t_name}_{l_old}_{l_new}.pdf",
+                                    mime="application/pdf",
+                                    key=f"dl_pdf_{created_at}",
+                                    use_container_width=True
+                                )
+
+                        with col_del:
+                            if st.button(":material/delete: Xóa đợt này", key=f"del_hist_{created_at}", use_container_width=True):
+                                if _dialog_decorator is not None:
+                                    confirm_delete_eval_modal(created_at, t_name, display_date_str, l_old, l_new)
+                                else:
+                                    delete_stage2_evaluation(created_at)
+                                    queue_popup("Đã chuyển vào Thùng rác", f"Đã xóa đợt đánh giá {t_name}.", "warning")
+                                    st.rerun()
 
 
 # ==============================================================================

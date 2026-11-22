@@ -15,7 +15,7 @@ STAGE2_HEADERS = [
     "id", "eval_date", "test_name", "machine", "machine_id", "unit",
     "lot_old", "lot_new", "level_name", "target_conc", "sid",
     "val_old", "val_new", "diff_d", "mean_d", "mean_d_pct",
-    "rl_pct", "k_factor", "status", "reagent_name", "created_at"
+    "rl_pct", "k_factor", "status", "reagent_name", "created_at", "signed"
 ]
 
 
@@ -207,6 +207,12 @@ def load_stage2_history() -> pd.DataFrame:
     for col in num_cols:
         if col in df.columns:
             df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0.0)
+
+    if "signed" not in df.columns:
+        df["signed"] = False
+    else:
+        df["signed"] = df["signed"].astype(str).str.strip().str.lower().isin(["1", "true", "yes", "đã ký"])
+
     if not df.empty and "eval_date" in df.columns and "id" in df.columns:
         df = df.sort_values(by=["eval_date", "id"], ascending=[False, False]).reset_index(drop=True)
     return df
@@ -253,10 +259,13 @@ def save_stage2_evaluation(records: list):
             "k_factor": float(r.get("k_factor", 0)),
             "status": str(r.get("status", "")),
             "reagent_name": str(r.get("reagent_name", "")),
-            "created_at": str(record_time)
+            "created_at": str(record_time),
+            "signed": "1" if str(r.get("signed", "0")).strip().lower() in ("1", "true", "yes", "đã ký") else "0"
         }
         data.append(new_row)
 
+    if ws.col_count < len(STAGE2_HEADERS):
+        ws.resize(rows=max(ws.row_count, len(data) + 10), cols=len(STAGE2_HEADERS))
     ws.clear()
     if data:
         df_to_save = pd.DataFrame(data).reindex(columns=STAGE2_HEADERS).fillna("")
@@ -264,6 +273,31 @@ def save_stage2_evaluation(records: list):
     else:
         ws.append_row(STAGE2_HEADERS, value_input_option="RAW")
     load_stage2_history.clear()
+
+
+def update_stage2_signed_status(created_at: str, is_signed: bool):
+    """Cập nhật trạng thái Đã ký ('1') / Chưa ký ('0') cho một đợt đánh giá trong stage2_evaluations."""
+    sh = get_spreadsheet()
+    ws = sh.worksheet("stage2_evaluations")
+    data = _read_raw_records(ws)
+    if not data:
+        return
+
+    val_str = "1" if bool(is_signed) else "0"
+    target_key = str(created_at).strip()
+    updated = False
+    for row in data:
+        if str(row.get("created_at", "")).strip() == target_key:
+            row["signed"] = val_str
+            updated = True
+
+    if updated:
+        if ws.col_count < len(STAGE2_HEADERS):
+            ws.resize(rows=max(ws.row_count, len(data) + 10), cols=len(STAGE2_HEADERS))
+        df_to_save = pd.DataFrame(data).reindex(columns=STAGE2_HEADERS).fillna("")
+        ws.clear()
+        ws.update([STAGE2_HEADERS] + df_to_save.values.tolist(), value_input_option="RAW")
+        load_stage2_history.clear()
 
 
 def delete_stage2_evaluation(created_at: str):
@@ -286,6 +320,8 @@ def delete_stage2_evaluation(created_at: str):
     if to_trash:
         trash_data = _read_raw_records(ws_trash)
         trash_data.extend(to_trash)
+        if ws_trash.col_count < len(STAGE2_HEADERS):
+            ws_trash.resize(rows=max(ws_trash.row_count, len(trash_data) + 10), cols=len(STAGE2_HEADERS))
         df_trash = pd.DataFrame(trash_data).reindex(columns=STAGE2_HEADERS).fillna("")
         ws_trash.clear()
         ws_trash.update([STAGE2_HEADERS] + df_trash.values.tolist(), value_input_option="RAW")
@@ -321,6 +357,8 @@ def restore_stage2_evaluation(created_at: str):
     if to_restore:
         main_data = _read_raw_records(ws)
         main_data.extend(to_restore)
+        if ws.col_count < len(STAGE2_HEADERS):
+            ws.resize(rows=max(ws.row_count, len(main_data) + 10), cols=len(STAGE2_HEADERS))
         df_main = pd.DataFrame(main_data).reindex(columns=STAGE2_HEADERS).fillna("")
         ws.clear()
         ws.update([STAGE2_HEADERS] + df_main.values.tolist(), value_input_option="RAW")
