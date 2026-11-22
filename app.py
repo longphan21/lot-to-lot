@@ -58,8 +58,11 @@ def _detect_mobile_from_request() -> bool:
 
 _INITIAL_IS_MOBILE = _detect_mobile_from_request()
 
+_ICON_PATH = os.path.join(os.path.dirname(__file__), "icon.png")
+
 st.set_page_config(
-    page_title="CLSI EP26 - Lot-to-Lot",
+    page_title="Lot to Lot",
+    page_icon=_ICON_PATH if os.path.exists(_ICON_PATH) else "🔬",
     layout="wide",
     initial_sidebar_state="collapsed" if _INITIAL_IS_MOBILE else "expanded"
 )
