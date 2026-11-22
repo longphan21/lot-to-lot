@@ -93,6 +93,19 @@ def clean_lot_str(val) -> str:
     return s
 
 
+def _parse_sample_float(raw_val) -> float:
+    """Chuyển chuỗi nhập mẫu (hỗ trợ cả dấu chấm '.' và dấu phẩy ',') sang float an toàn."""
+    if raw_val is None:
+        return 0.0
+    s = str(raw_val).strip().replace(",", ".")
+    if not s:
+        return 0.0
+    try:
+        return float(s)
+    except ValueError:
+        return 0.0
+
+
 def build_report_filename(test_name: str, machine: str, reagent: str, display_date_str: str) -> str:
     """Đổi tên file: Tên XN - Tên máy - Loại hóa chất (nếu có) - Ngày đánh giá.docx"""
     def _clean(s: str) -> str:
@@ -1225,6 +1238,86 @@ def inject_custom_css(is_mobile: bool = False):
             border-top: 1px dashed #DCEEE0;
         }}
 
+        /* 14. BẢNG NHẬP MẪU RESPONSIVE (KHÔNG CUỘN NGANG TRÊN CẢ DESKTOP & MOBILE) */
+        .s2-level-meta {{
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px 12px;
+            align-items: center;
+            background-color: #F4FAF6;
+            border: 1px solid #DCEEE0;
+            border-radius: 7px;
+            padding: 6px 10px;
+            margin-bottom: 10px;
+            font-size: 0.78rem;
+            color: #0A2540;
+        }}
+        .s2-grid-header {{
+            display: grid;
+            grid-template-columns: 0.36fr 1.38fr 1.13fr 1.13fr;
+            gap: 8px;
+            padding: 5px 8px;
+            background-color: #E6F4EA;
+            border: 1px solid #C8E6C9;
+            border-radius: 6px;
+            font-size: 0.75rem;
+            font-weight: 800;
+            color: #1B5E20;
+            margin-bottom: 6px;
+            text-align: center;
+        }}
+        .s2-row-idx {{
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 26px;
+            height: 26px;
+            border-radius: 6px;
+            background-color: #E6F4EA;
+            border: 1px solid #A5D6A7;
+            color: #1B5E20;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.75rem;
+            font-weight: 800;
+        }}
+        .s2-mob-sample-tag {{
+            display: inline-block;
+            background-color: #E6F4EA;
+            color: #1B5E20;
+            border: 1px solid #A5D6A7;
+            border-radius: 5px;
+            padding: 1px 8px;
+            font-size: 0.73rem;
+            font-weight: 800;
+            margin-top: 6px;
+            margin-bottom: 4px;
+        }}
+        /* Giữ 2 ô LOT cũ & LOT mới nằm ngang 50/50 gọn gàng trên màn hình điện thoại */
+        [data-testid="stHorizontalBlock"]:has([class*="st-key-_w_s2m_old_"]),
+        [data-testid="stHorizontalBlock"]:has([class*="st-key-s2_btn_add_"]) {{
+            flex-wrap: nowrap !important;
+            gap: 0.45rem !important;
+        }}
+        [data-testid="stHorizontalBlock"]:has([class*="st-key-_w_s2m_old_"]) > [data-testid="stColumn"],
+        [data-testid="stHorizontalBlock"]:has([class*="st-key-s2_btn_add_"]) > [data-testid="stColumn"] {{
+            min-width: 0 !important;
+            flex: 1 1 50% !important;
+            width: 50% !important;
+        }}
+        /* Trên Desktop, các dòng nhập 4 cột không bị ép tràn ngang */
+        [data-testid="stHorizontalBlock"]:has([class*="st-key-_w_s2d_sid_"]) {{
+            gap: 0.45rem !important;
+            margin-bottom: -4px !important;
+        }}
+        [data-testid="stHorizontalBlock"]:has([class*="st-key-_w_s2d_sid_"]) > [data-testid="stColumn"] {{
+            min-width: 0 !important;
+        }}
+        [data-testid="stHorizontalBlock"]:has([class*="st-key-_w_s2d_sid_"]) input,
+        [data-testid="stHorizontalBlock"]:has([class*="st-key-_w_s2m_old_"]) input {{
+            font-family: 'JetBrains Mono', monospace !important;
+            font-size: 0.82rem !important;
+        }}
+
         @media (max-width: 768px) {{
             .block-container,
             [data-testid="stMainBlockContainer"],
@@ -1262,11 +1355,26 @@ def format_status_badge_html(status_val: str) -> str:
 # ==============================================================================
 # TRANG 1: ĐÁNH GIÁ MẪU THỰC TẾ (STAGE 2) — KHÓA CỨNG + STATE PERSISTENCE
 # ==============================================================================
+def _ensure_level_rows(sample_sig: str, min_rows: int) -> list:
+    """Khởi tạo hoặc lấy danh sách dòng mẫu bền vững cho 1 mức nồng độ."""
+    store = st.session_state.setdefault("_persist_l2l_rows", {})
+    rows = store.get(sample_sig)
+    if not isinstance(rows, list) or len(rows) == 0:
+        rows = [{"sid": "", "old": "", "new": ""} for _ in range(max(1, min_rows))]
+        store[sample_sig] = rows
+    return rows
+
+
+def _sync_sample_cell(sample_sig: str, row_idx: int, field_name: str, widget_key: str):
+    """Đồng bộ tức thì ô nhập vào bộ nhớ bền vững khi người dùng gõ."""
+    rows = st.session_state.setdefault("_persist_l2l_rows", {}).get(sample_sig)
+    if isinstance(rows, list) and 0 <= row_idx < len(rows):
+        rows[row_idx][field_name] = str(st.session_state.get(widget_key, ""))
+
+
 def render_stage2_workspace(active_setups: pd.DataFrame, is_mobile: bool = False):
-    if "_persist_l2l_samples" not in st.session_state:
-        st.session_state["_persist_l2l_samples"] = {}
-    if "_seed_l2l_samples" not in st.session_state:
-        st.session_state["_seed_l2l_samples"] = {}
+    if "_persist_l2l_rows" not in st.session_state:
+        st.session_state["_persist_l2l_rows"] = {}
     if "_l2l_clear_cnt" not in st.session_state:
         st.session_state["_l2l_clear_cnt"] = 0
 
@@ -1390,31 +1498,38 @@ def render_stage2_workspace(active_setups: pd.DataFrame, is_mobile: bool = False
     unit_s2 = str(test_levels_df["unit"].iloc[0]) if not test_levels_df.empty else "mmol/L"
 
     # Thanh tiêu đề Nhập kết quả mẫu + nút chủ động làm trống bảng mẫu khi bắt đầu đợt mới
+    def _clear_current_samples():
+        for idx_c in range(len(test_levels_df)):
+            sig_c = f"{eval_test}::{eval_machine}::{idx_c + 1}"
+            st.session_state["_persist_l2l_rows"].pop(sig_c, None)
+        st.session_state["_l2l_clear_cnt"] += 1
+
     if is_mobile:
         st.markdown("### :material/biotech: 2. Nhập kết quả mẫu")
-        if st.button(":material/restart_alt: Làm trống bảng mẫu (Đợt mới)", type="secondary", use_container_width=True, key="btn_clear_s2_samples_m"):
-            for idx_c in range(len(test_levels_df)):
-                sig_c = f"{eval_test}::{eval_machine}::{idx_c + 1}"
-                st.session_state["_persist_l2l_samples"].pop(sig_c, None)
-                st.session_state["_seed_l2l_samples"].pop(sig_c, None)
-            st.session_state["_l2l_clear_cnt"] += 1
-            st.rerun()
+        st.button(
+            ":material/restart_alt: Làm trống bảng mẫu (Đợt mới)",
+            type="secondary",
+            use_container_width=True,
+            key="btn_clear_s2_samples_m",
+            on_click=_clear_current_samples,
+        )
     else:
         s2_h1, s2_h2 = st.columns([3.6, 1.4], vertical_alignment="center")
         with s2_h1:
             st.markdown("### :material/biotech: 2. Nhập kết quả mẫu")
         with s2_h2:
-            if st.button(":material/restart_alt: Làm trống bảng mẫu", type="secondary", use_container_width=True, key="btn_clear_s2_samples_d"):
-                for idx_c in range(len(test_levels_df)):
-                    sig_c = f"{eval_test}::{eval_machine}::{idx_c + 1}"
-                    st.session_state["_persist_l2l_samples"].pop(sig_c, None)
-                    st.session_state["_seed_l2l_samples"].pop(sig_c, None)
-                st.session_state["_l2l_clear_cnt"] += 1
-                st.rerun()
+            st.button(
+                ":material/restart_alt: Làm trống bảng mẫu",
+                type="secondary",
+                use_container_width=True,
+                key="btn_clear_s2_samples_d",
+                on_click=_clear_current_samples,
+            )
 
     flat_records_to_save = []
     summary_table_rows = []
     clear_ver = st.session_state["_l2l_clear_cnt"]
+    safe_sig_prefix = re.sub(r"[^a-zA-Z0-9_]", "_", f"{eval_test}_{eval_machine}")
 
     for idx, lv_row in test_levels_df.iterrows():
         level_num = idx + 1
@@ -1424,45 +1539,92 @@ def render_stage2_workspace(active_setups: pd.DataFrame, is_mobile: bool = False
         n_req = max(3, int(lv_row["n_samples"]))
 
         sample_sig = f"{eval_test}::{eval_machine}::{level_num}"
-        editor_key = f"s2_ed_{eval_test}_{eval_machine}_{level_num}_{clear_ver}"
+        rows_data = _ensure_level_rows(sample_sig, n_req)
 
-        # Chỉ nạp seed từ bộ nhớ bền vững khi widget chưa tồn tại (mới mở/quay lại tab) để tránh feedback loop
-        if editor_key not in st.session_state:
-            saved_df_lv = st.session_state["_persist_l2l_samples"].get(sample_sig)
-            if isinstance(saved_df_lv, pd.DataFrame) and not saved_df_lv.empty:
-                st.session_state["_seed_l2l_samples"][sample_sig] = saved_df_lv.copy()
-            else:
-                st.session_state["_seed_l2l_samples"][sample_sig] = pd.DataFrame(
-                    [{"SID (Mã mẫu)": "", "Kết quả LOT cũ": 0.00, "Kết quả LOT mới": 0.00} for _ in range(n_req)]
-                )
+        def _add_row_cb(sig=sample_sig):
+            st.session_state["_persist_l2l_rows"][sig].append({"sid": "", "old": "", "new": ""})
 
-        seed_df = st.session_state["_seed_l2l_samples"].get(
-            sample_sig,
-            pd.DataFrame([{"SID (Mã mẫu)": "", "Kết quả LOT cũ": 0.00, "Kết quả LOT mới": 0.00} for _ in range(n_req)])
-        )
+        def _del_row_cb(sig=sample_sig):
+            lst = st.session_state["_persist_l2l_rows"][sig]
+            if len(lst) > 1:
+                lst.pop()
 
         with st.container(border=True):
             st.markdown(f"#### :material/target: Mức nồng độ: `{target_val:.3f} {unit_s2}`")
-            st.markdown(
-                f"**Yêu cầu:** `{int(lv_row['n_samples'])} mẫu` &nbsp;|&nbsp; **Giới hạn RL:** `{rl_pct_db:.3f}%`"
-            )
-
-            col_config_lv = {
-                "SID (Mã mẫu)": st.column_config.TextColumn("SID" if is_mobile else "SID mẫu bệnh nhân"),
-                "Kết quả LOT cũ": st.column_config.NumberColumn(f"LOT cũ ({lot_old})", format="%.3f"),
-                "Kết quả LOT mới": st.column_config.NumberColumn(f"LOT mới ({lot_new})", format="%.3f"),
-            }
+            render_html(f"""
+            <div class="s2-level-meta">
+                <span>📋 <b>Yêu cầu:</b> <code>{int(lv_row['n_samples'])} mẫu</code></span>
+                <span>🎯 <b>Giới hạn RL:</b> <code>{rl_pct_db:.3f}%</code></span>
+                <span>🧪 <b>LOT:</b> <span class="lot-pill">{lot_old or '-'} ➔ {lot_new or '-'}</span></span>
+            </div>
+            """)
 
             if is_mobile:
-                edited_samples = st.data_editor(
-                    seed_df,
-                    num_rows="dynamic",
+                # GIAO DIỆN MOBILE: TỪNG MẪU GỌN DỌC, KHÔNG CUỘN NGANG, LOT CŨ & LOT MỚI SONG SONG 50/50
+                for r_i, row_item in enumerate(rows_data):
+                    render_html(f'<div class="s2-mob-sample-tag">Mẫu #{r_i + 1}</div>')
+                    k_sid = f"_w_s2m_sid_{safe_sig_prefix}_L{level_num}_r{r_i}_v{clear_ver}"
+                    k_old = f"_w_s2m_old_{safe_sig_prefix}_L{level_num}_r{r_i}_v{clear_ver}"
+                    k_new = f"_w_s2m_new_{safe_sig_prefix}_L{level_num}_r{r_i}_v{clear_ver}"
+
+                    st.session_state[k_sid] = str(row_item.get("sid", ""))
+                    st.session_state[k_old] = str(row_item.get("old", ""))
+                    st.session_state[k_new] = str(row_item.get("new", ""))
+
+                    sid_v = st.text_input(
+                        f"SID mẫu #{r_i + 1}",
+                        placeholder=f"Mã mẫu (SID) #{r_i + 1}",
+                        key=k_sid,
+                        label_visibility="collapsed",
+                        on_change=_sync_sample_cell,
+                        args=(sample_sig, r_i, "sid", k_sid),
+                    )
+                    row_item["sid"] = sid_v
+
+                    mc_old, mc_new = st.columns(2)
+                    old_v = mc_old.text_input(
+                        "LOT cũ",
+                        placeholder="0.000",
+                        key=k_old,
+                        on_change=_sync_sample_cell,
+                        args=(sample_sig, r_i, "old", k_old),
+                    )
+                    new_v = mc_new.text_input(
+                        "LOT mới",
+                        placeholder="0.000",
+                        key=k_new,
+                        on_change=_sync_sample_cell,
+                        args=(sample_sig, r_i, "new", k_new),
+                    )
+                    row_item["old"] = old_v
+                    row_item["new"] = new_v
+
+                b_add, b_del = st.columns(2)
+                b_add.button(
+                    ":material/add: Thêm mẫu",
+                    key=f"s2_btn_add_{safe_sig_prefix}_L{level_num}",
+                    type="secondary",
                     use_container_width=True,
-                    column_config=col_config_lv,
-                    key=editor_key,
+                    on_click=_add_row_cb,
                 )
-                st.session_state["_persist_l2l_samples"][sample_sig] = edited_samples.copy()
-                eval_res = evaluate_stage2_level(samples_df=edited_samples, rl_pct=rl_pct_db)
+                b_del.button(
+                    ":material/remove: Bớt dòng cuối",
+                    key=f"s2_btn_del_{safe_sig_prefix}_L{level_num}",
+                    type="secondary",
+                    use_container_width=True,
+                    disabled=(len(rows_data) <= 1),
+                    on_click=_del_row_cb,
+                )
+
+                samples_df_lv = pd.DataFrame([
+                    {
+                        "SID (Mã mẫu)": str(r.get("sid", "")).strip(),
+                        "Kết quả LOT cũ": _parse_sample_float(r.get("old")),
+                        "Kết quả LOT mới": _parse_sample_float(r.get("new")),
+                    }
+                    for r in rows_data
+                ])
+                eval_res = evaluate_stage2_level(samples_df=samples_df_lv, rl_pct=rl_pct_db)
 
                 if not eval_res["has_data"]:
                     st.info("Nhập ít nhất 1 cặp kết quả (> 0) để xem đánh giá.", icon=":material/info:")
@@ -1498,27 +1660,95 @@ def render_stage2_workspace(active_setups: pd.DataFrame, is_mobile: bool = False
                         </div>
                         """)
             else:
-                in_col, out_col = st.columns([2.2, 1.8])
+                # GIAO DIỆN DESKTOP: BẢNG Ô NHẬP GỌN 4 CỘT VỪA KHÍT MÀN HÌNH, KHÔNG CUỘN NGANG
+                in_col, out_col = st.columns([2.45, 1.55], gap="medium")
                 with in_col:
-                    edited_samples = st.data_editor(
-                        seed_df,
-                        num_rows="dynamic",
-                        use_container_width=True,
-                        column_config=col_config_lv,
-                        key=editor_key,
-                    )
-                    st.session_state["_persist_l2l_samples"][sample_sig] = edited_samples.copy()
+                    render_html("""
+                    <div class="s2-grid-header">
+                        <div>#</div>
+                        <div>SID (Mã mẫu)</div>
+                        <div>KQ LOT cũ</div>
+                        <div>KQ LOT mới</div>
+                    </div>
+                    """)
 
-                eval_res = evaluate_stage2_level(samples_df=edited_samples, rl_pct=rl_pct_db)
+                    for r_i, row_item in enumerate(rows_data):
+                        k_sid = f"_w_s2d_sid_{safe_sig_prefix}_L{level_num}_r{r_i}_v{clear_ver}"
+                        k_old = f"_w_s2d_old_{safe_sig_prefix}_L{level_num}_r{r_i}_v{clear_ver}"
+                        k_new = f"_w_s2d_new_{safe_sig_prefix}_L{level_num}_r{r_i}_v{clear_ver}"
+
+                        st.session_state[k_sid] = str(row_item.get("sid", ""))
+                        st.session_state[k_old] = str(row_item.get("old", ""))
+                        st.session_state[k_new] = str(row_item.get("new", ""))
+
+                        rc0, rc1, rc2, rc3 = st.columns([0.36, 1.38, 1.13, 1.13], vertical_alignment="center")
+                        with rc0:
+                            render_html(f'<div style="text-align:center;"><span class="s2-row-idx">{r_i + 1}</span></div>')
+
+                        sid_v = rc1.text_input(
+                            f"SID #{r_i + 1}",
+                            placeholder=f"Mã mẫu #{r_i + 1}",
+                            key=k_sid,
+                            label_visibility="collapsed",
+                            on_change=_sync_sample_cell,
+                            args=(sample_sig, r_i, "sid", k_sid),
+                        )
+                        old_v = rc2.text_input(
+                            f"LOT cũ #{r_i + 1}",
+                            placeholder="0.000",
+                            key=k_old,
+                            label_visibility="collapsed",
+                            on_change=_sync_sample_cell,
+                            args=(sample_sig, r_i, "old", k_old),
+                        )
+                        new_v = rc3.text_input(
+                            f"LOT mới #{r_i + 1}",
+                            placeholder="0.000",
+                            key=k_new,
+                            label_visibility="collapsed",
+                            on_change=_sync_sample_cell,
+                            args=(sample_sig, r_i, "new", k_new),
+                        )
+                        row_item["sid"] = sid_v
+                        row_item["old"] = old_v
+                        row_item["new"] = new_v
+
+                    st.write("")
+                    ba1, ba2, _ = st.columns([1.2, 1.3, 1.5])
+                    ba1.button(
+                        ":material/add: Thêm mẫu",
+                        key=f"s2_btn_add_d_{safe_sig_prefix}_L{level_num}",
+                        type="secondary",
+                        use_container_width=True,
+                        on_click=_add_row_cb,
+                    )
+                    ba2.button(
+                        ":material/remove: Bớt dòng cuối",
+                        key=f"s2_btn_del_d_{safe_sig_prefix}_L{level_num}",
+                        type="secondary",
+                        use_container_width=True,
+                        disabled=(len(rows_data) <= 1),
+                        on_click=_del_row_cb,
+                    )
+
+                samples_df_lv = pd.DataFrame([
+                    {
+                        "SID (Mã mẫu)": str(r.get("sid", "")).strip(),
+                        "Kết quả LOT cũ": _parse_sample_float(r.get("old")),
+                        "Kết quả LOT mới": _parse_sample_float(r.get("new")),
+                    }
+                    for r in rows_data
+                ])
+                eval_res = evaluate_stage2_level(samples_df=samples_df_lv, rl_pct=rl_pct_db)
 
                 with out_col:
                     if not eval_res["has_data"]:
                         st.info("Nhập ít nhất 1 cặp kết quả (> 0) để xem đánh giá.", icon=":material/info:")
                     else:
                         m1, m2, m3 = st.columns(3)
-                        m1.metric("Trung bình d", f"{eval_res['mean_d']:.4f}")
-                        m2.metric("Trung bình độ chệch (%)", f"{eval_res['mean_d_pct']:.3f}%")
-                        m3.metric("Rejection Limit", f"{eval_res['rl_pct']:.3f}%")
+                        m1.metric("Trung bình |d|", f"{eval_res['mean_d']:.4f}")
+                        m2.metric("TB độ chệch (%)", f"{eval_res['mean_d_pct']:.3f}%")
+                        m3.metric("Giới hạn RL", f"{eval_res['rl_pct']:.3f}%")
 
                         if eval_res["result"] == "PASS":
                             render_html(f"""
@@ -2148,14 +2378,18 @@ def render_stage1_workspace(all_setups_for_dropdown: pd.DataFrame, is_mobile: bo
 
     st.markdown("### :material/edit_note: Nhập thông số và chọn mức nồng độ")
     edited_input = st.data_editor(
-        init_input_df, num_rows="dynamic", use_container_width=True,
+        init_input_df,
+        num_rows="dynamic",
+        use_container_width=True,
+        hide_index=True,
         column_config={
-            "Chọn chạy (Vàng)": st.column_config.CheckboxColumn("Chọn chạy"),
-            "Target concentration": st.column_config.NumberColumn("Target concentration", format="%.3f"),
-            "TEa%": st.column_config.NumberColumn("TEa%", format="%.3f"),
-            "Swrl = CVwrl %": st.column_config.NumberColumn("Swrl = CVwrl %", format="%.3f"),
-            "Sr = CVr %": st.column_config.NumberColumn("Sr = CVr %", format="%.3f"),
-        }, key=f"editor_{test_name}_{machine_name}"
+            "Chọn chạy (Vàng)": st.column_config.CheckboxColumn("Chọn", width="small"),
+            "Target concentration": st.column_config.NumberColumn("Target", format="%.3f", width="small"),
+            "TEa%": st.column_config.NumberColumn("TEa%", format="%.3f", width="small"),
+            "Swrl = CVwrl %": st.column_config.NumberColumn("Swrl%", format="%.3f", width="small"),
+            "Sr = CVr %": st.column_config.NumberColumn("Sr%", format="%.3f", width="small"),
+        },
+        key=f"editor_{test_name}_{machine_name}",
     )
 
     selected_input = edited_input[edited_input["Chọn chạy (Vàng)"] == True]
