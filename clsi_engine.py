@@ -18,13 +18,15 @@ MAX_CD_SWRL_BY_LEVELS = {
 }
 
 
-def round_down_cd_swrl(val: float, num_levels: int) -> float:
+def round_cd_swrl(val: float, num_levels: int, round_mode: str = "down") -> float:
     max_cap = MAX_CD_SWRL_BY_LEVELS.get(num_levels, 6.0)
     if val >= max_cap:
         return max_cap
     if val < 1.0:
         return 1.0
-    return math.floor(val * 2.0) / 2.0
+    if round_mode == "up":
+        return min(max_cap, math.ceil(val * 2.0 - 1e-9) / 2.0)
+    return math.floor(val * 2.0 + 1e-9) / 2.0
 
 
 def round_down_sr_swrl(val: float) -> float:
@@ -69,11 +71,12 @@ def get_candidate_options_for_row(
         sr_pct: float,
         num_levels: int = 2,
         desired_power: float = 0.80,
-        sort_mode: str = "min_n_max_power"
+        sort_mode: str = "min_n_max_power",
+        cd_round_mode: str = "down"
 ) -> list:
     if swrl_pct <= 0 or sr_pct <= 0 or tea_pct <= 0:
         return [{
-            "cd_pct": 0.0, "cd_swrl": 0.0, "sr_swrl": 0.0,
+            "cd_pct": 0.0, "cd_swrl": 0.0, "cd_swrl_tab": 0.0, "sr_swrl": 0.0,
             "power_achieve": 0.0, "n_samples": 0, "rejection_limit": 0.0,
             "k_factor": 0.0, "meets_power": False, "note": "Thông số đầu vào phải > 0"
         }]
@@ -84,12 +87,12 @@ def get_candidate_options_for_row(
 
     if cd_pct <= 0:
         return [{
-            "cd_pct": round(cd_pct, 3), "cd_swrl": round(cd_swrl, 3), "sr_swrl": round(sr_swrl, 3),
+            "cd_pct": round(cd_pct, 3), "cd_swrl": round(cd_swrl, 3), "cd_swrl_tab": 0.0, "sr_swrl": round(sr_swrl, 3),
             "power_achieve": 0.0, "n_samples": 0, "rejection_limit": round(0.80 * cd_pct, 2),
             "k_factor": 0.80, "meets_power": False, "note": "CD% <= 0 (CVwrl quá lớn so với TEa)"
         }]
 
-    cd_swrl_tab = round_down_cd_swrl(cd_swrl, num_levels)
+    cd_swrl_tab = round_cd_swrl(cd_swrl, num_levels, cd_round_mode)
     sr_swrl_tab = round_down_sr_swrl(sr_swrl)
 
     valid_options = []
@@ -100,6 +103,7 @@ def get_candidate_options_for_row(
             valid_options.append({
                 "cd_pct": round(cd_pct, 3),
                 "cd_swrl": round(cd_swrl, 3),
+                "cd_swrl_tab": cd_swrl_tab,
                 "sr_swrl": round(sr_swrl, 3),
                 "power_achieve": round(p_val, 3),
                 "n_samples": int(n_val),
@@ -114,7 +118,7 @@ def get_candidate_options_for_row(
 
     if not valid_options:
         return [{
-            "cd_pct": round(cd_pct, 3), "cd_swrl": round(cd_swrl, 3), "sr_swrl": round(sr_swrl, 3),
+            "cd_pct": round(cd_pct, 3), "cd_swrl": round(cd_swrl, 3), "cd_swrl_tab": cd_swrl_tab, "sr_swrl": round(sr_swrl, 3),
             "power_achieve": 0.0, "n_samples": 0, "rejection_limit": round(0.70 * cd_pct, 3),
             "k_factor": 0.70, "meets_power": False,
             "note": "Không tra được trong bảng với M=1 (Cần tăng CD hoặc chạy nhiều lần)"

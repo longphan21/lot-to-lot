@@ -2391,36 +2391,61 @@ def render_stage1_workspace(all_setups_for_dropdown: pd.DataFrame, is_mobile: bo
             if pd.isna(row["Target concentration"]) or pd.isna(row["TEa%"]):
                 continue
             target_c = float(row["Target concentration"])
-            candidates = get_candidate_options_for_row(
-                tea_pct=float(row["TEa%"]),
-                swrl_pct=float(row["Swrl = CVwrl %"]),
-                sr_pct=float(row["Sr = CVr %"]),
-                num_levels=num_selected_levels,
-                desired_power=global_target_power,
-                sort_mode="min_n_max_power"
-            )
 
             with st.container(border=True):
-                st.markdown(f"#### :material/target: Mức nồng độ: `{target_c:.3f} {unit_name}`")
+                if is_mobile:
+                    st.markdown(f"#### :material/target: Mức nồng độ: `{target_c:.3f} {unit_name}`")
+                    cd_round_mode = st.radio(
+                        "Làm tròn CD/Swrl:",
+                        options=["down", "up"],
+                        format_func=lambda m: "CD/Swrl: Tròn xuống" if m == "down" else "CD/Swrl: Tròn lên",
+                        horizontal=True,
+                        key=f"cd_round_{test_name}_{machine_name}_{idx}",
+                        label_visibility="collapsed",
+                    )
+                else:
+                    lv_h1, lv_h2 = st.columns([2.2, 1.8], vertical_alignment="center")
+                    with lv_h1:
+                        st.markdown(f"#### :material/target: Mức nồng độ: `{target_c:.3f} {unit_name}`")
+                    with lv_h2:
+                        cd_round_mode = st.radio(
+                            "Làm tròn CD/Swrl:",
+                            options=["down", "up"],
+                            format_func=lambda m: "CD/Swrl: Tròn xuống" if m == "down" else "CD/Swrl: Tròn lên",
+                            horizontal=True,
+                            key=f"cd_round_{test_name}_{machine_name}_{idx}",
+                            label_visibility="collapsed",
+                        )
+
+                candidates = get_candidate_options_for_row(
+                    tea_pct=float(row["TEa%"]),
+                    swrl_pct=float(row["Swrl = CVwrl %"]),
+                    sr_pct=float(row["Sr = CVr %"]),
+                    num_levels=num_selected_levels,
+                    desired_power=global_target_power,
+                    sort_mode="min_n_max_power",
+                    cd_round_mode=cd_round_mode,
+                )
+
                 if len(candidates) > 1:
                     option_labels = [
-                        f"PA {i + 1} (A{num_selected_levels}): {c['n_samples']} mẫu | Power={c['power_achieve']:.3f} | K={c['k_factor']} | RL={c['rejection_limit']:.2f}%"
+                        f"PA {i + 1} (A{num_selected_levels} • tra {c['cd_swrl_tab']}): {c['n_samples']} mẫu | Power={c['power_achieve']:.3f} | K={c['k_factor']} | RL={c['rejection_limit']:.2f}%"
                         if is_mobile else
-                        f"Phương án {i + 1} (Tra Bảng A{num_selected_levels}): {c['n_samples']} mẫu | Power = {c['power_achieve']:.3f} | CD/Swrl = {c['cd_swrl']} | Sr/Swrl = {c['sr_swrl']} | K = {c['k_factor']} | RL = {c['rejection_limit']:.2f}%"
+                        f"Phương án {i + 1} (Tra Bảng A{num_selected_levels}): {c['n_samples']} mẫu | Power = {c['power_achieve']:.3f} | CD/Swrl = {c['cd_swrl']} (tra {c['cd_swrl_tab']}) | Sr/Swrl = {c['sr_swrl']} | K = {c['k_factor']} | RL = {c['rejection_limit']:.2f}%"
                         for i, c in enumerate(candidates)
                     ]
                     selected_label = st.selectbox(
                         "Chọn phương án chốt:",
                         options=option_labels,
                         index=0,
-                        key=f"pick_{test_name}_{machine_name}_{idx}",
+                        key=f"pick_{test_name}_{machine_name}_{idx}_{cd_round_mode}",
                         label_visibility="collapsed"
                     )
                     picked_cand = candidates[option_labels.index(selected_label)]
                 else:
                     picked_cand = candidates[0]
                     st.info(
-                        f"Tra Bảng A{num_selected_levels} | Cần {picked_cand['n_samples']} mẫu | Power = {picked_cand['power_achieve']:.3f} | CD/Swrl = {picked_cand['cd_swrl']} | Sr/Swrl = {picked_cand['sr_swrl']} | K = {picked_cand['k_factor']} | RL = {picked_cand['rejection_limit']:.2f}%",
+                        f"Tra Bảng A{num_selected_levels} | Cần {picked_cand['n_samples']} mẫu | Power = {picked_cand['power_achieve']:.3f} | CD/Swrl = {picked_cand['cd_swrl']} (tra {picked_cand['cd_swrl_tab']}) | Sr/Swrl = {picked_cand['sr_swrl']} | K = {picked_cand['k_factor']} | RL = {picked_cand['rejection_limit']:.2f}%",
                         icon=":material/lightbulb:"
                     )
 
@@ -2435,7 +2460,7 @@ def render_stage1_workspace(all_setups_for_dropdown: pd.DataFrame, is_mobile: bo
                     "n_samples": picked_cand["n_samples"],
                     "Ghi chú": picked_cand.get(
                         "note",
-                        f"Đạt chuẩn (Mốc tra bảng: CD/Swrl={picked_cand['cd_swrl']}, Sr/Swrl={picked_cand['sr_swrl']})"
+                        f"Đạt chuẩn (Mốc tra bảng: CD/Swrl={picked_cand['cd_swrl_tab']}, Sr/Swrl={picked_cand['sr_swrl']})"
                     )
                 })
                 chosen_final_rows.append(row_to_save)
